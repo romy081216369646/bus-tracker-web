@@ -13,26 +13,24 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as {
-    fleetCode?: string;
-    model?: string;
-    capacity?: number;
-    status?: "ACTIVE" | "REPAIR" | "STANDBY";
-    routeId?: string | null;
+    name?: string;
+    rfidTag?: string;
+    lat?: number;
+    lng?: number;
   };
 
-  if (!body.fleetCode || !body.model || !body.capacity) {
+  if (!body.name || !body.rfidTag || body.lat === undefined || body.lng === undefined) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
 
-  const bus = await prisma.bus.create({
+  const stop = await prisma.stop.create({
     data: {
-      fleetCode: body.fleetCode,
-      model: body.model,
-      capacity: body.capacity,
-      status: body.status ?? "ACTIVE",
-      routeId: body.routeId ?? null,
+      name: body.name,
+      rfidTag: body.rfidTag,
+      lat: body.lat,
+      lng: body.lng,
     },
   });
 
-  return NextResponse.json(bus);
+  return NextResponse.json(stop);
 }

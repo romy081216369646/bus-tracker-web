@@ -5,56 +5,49 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ busId: string }> },
+  { params }: { params: Promise<{ routeStopId: string }> },
 ) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
 
-  const { busId } = await params;
-
   if (!session || session.user.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { routeStopId } = await params;
   const body = (await request.json()) as {
-    fleetCode?: string;
-    model?: string;
-    capacity?: number;
-    status?: "ACTIVE" | "REPAIR" | "STANDBY";
-    routeId?: string | null;
+    order?: number;
   };
 
-  const bus = await prisma.bus.update({
-    where: { id: busId },
-    data: {
-      fleetCode: body.fleetCode,
-      model: body.model,
-      capacity: body.capacity,
-      status: body.status,
-      routeId: body.routeId,
-    },
+  if (body.order === undefined) {
+    return NextResponse.json({ error: "Missing order" }, { status: 400 });
+  }
+
+  const routeStop = await prisma.routeStop.update({
+    where: { id: routeStopId },
+    data: { order: body.order },
   });
 
-  return NextResponse.json(bus);
+  return NextResponse.json(routeStop);
 }
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: Promise<{ busId: string }> },
+  { params }: { params: Promise<{ routeStopId: string }> },
 ) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
 
-  const { busId } = await params;
-
   if (!session || session.user.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await prisma.bus.delete({
-    where: { id: busId },
+  const { routeStopId } = await params;
+
+  await prisma.routeStop.delete({
+    where: { id: routeStopId },
   });
 
   return NextResponse.json({ ok: true });

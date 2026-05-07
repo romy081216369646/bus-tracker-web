@@ -42,6 +42,12 @@ enum ScheduleType {
   PEAK
 }
 
+enum BusEventType {
+  PASSENGER_IN
+  PASSENGER_OUT
+  RFID_STOP
+}
+
 model User {
   id            String    @id
   name          String
@@ -113,6 +119,7 @@ model Route {
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
   buses        Bus[]
+  stops        RouteStop[]
 }
 
 model Bus {
@@ -128,6 +135,64 @@ model Bus {
   heading      String             @default("Unknown")
   routeId      String?
   route        Route?              @relation(fields: [routeId], references: [id], onDelete: SetNull)
+  state        BusState?
+  events       BusEvent[]
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
+}
+
+model Stop {
+  id        String      @id @default(cuid())
+  name      String
+  rfidTag   String      @unique
+  lat       Float
+  lng       Float
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  routes    RouteStop[]
+  events    BusEvent[]
+  lastSeen  BusState[]  @relation("BusStateLastStop")
+  nextStops BusState[]  @relation("BusStateDestination")
+}
+
+model RouteStop {
+  id        String   @id @default(cuid())
+  routeId   String
+  stopId    String
+  order     Int
+  createdAt DateTime @default(now())
+
+  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  stop  Stop  @relation(fields: [stopId], references: [id], onDelete: Cascade)
+
+  @@index([routeId, order])
+  @@unique([routeId, stopId])
+}
+
+model BusEvent {
+  id        String       @id @default(cuid())
+  busId     String
+  type      BusEventType
+  delta     Int?
+  stopId    String?
+  rfidTag   String?
+  payload   Json?
+  createdAt DateTime     @default(now())
+
+  bus  Bus  @relation(fields: [busId], references: [id], onDelete: Cascade)
+  stop Stop? @relation(fields: [stopId], references: [id], onDelete: SetNull)
+
+  @@index([busId, createdAt])
+}
+
+model BusState {
+  busId             String   @id
+  passengers        Int      @default(0)
+  lastStopId        String?
+  destinationStopId String?
+  updatedAt         DateTime @updatedAt
+
+  bus         Bus   @relation(fields: [busId], references: [id], onDelete: Cascade)
+  lastStop    Stop? @relation("BusStateLastStop", fields: [lastStopId], references: [id])
+  destination Stop? @relation("BusStateDestination", fields: [destinationStopId], references: [id])
 }

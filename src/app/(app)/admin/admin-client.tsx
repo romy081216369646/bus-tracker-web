@@ -13,10 +13,10 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type AdminTab = "buses" | "routes";
+type AdminTab = "buses" | "routes" | "stops" | "route-stops";
 
 type BusStatus = "ACTIVE" | "REPAIR" | "STANDBY";
 type RouteStatus = "ACTIVE" | "DRAFT" | "INACTIVE";
@@ -31,6 +31,7 @@ type BusItem = {
   model: string;
   capacity: number;
   status: BusStatus;
+  routeId: string | null;
 };
 
 type ConfiguredRoute = {
@@ -44,12 +45,29 @@ type ConfiguredRoute = {
   status: RouteStatus;
 };
 
+type StopItem = {
+  id: string;
+  name: string;
+  rfidTag: string;
+  lat: number;
+  lng: number;
+};
+
+type RouteStopItem = {
+  id: string;
+  routeId: string;
+  stopId: string;
+  order: number;
+  stopName: string;
+};
+
 type BusDraft = {
   id: string;
   fleetCode: string;
   model: string;
   capacity: string;
   status: BusStatus;
+  routeId: string;
 };
 
 type RouteDraft = {
@@ -74,7 +92,13 @@ const routeStatusClass: Record<RouteStatus, string> = {
   INACTIVE: "bg-rose-100 text-rose-700",
 };
 
-function BusesPanel({ buses }: { buses: BusItem[] }) {
+function BusesPanel({
+  buses,
+  configuredRoutes,
+}: {
+  buses: BusItem[];
+  configuredRoutes: ConfiguredRoute[];
+}) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<BusStatus | "ALL">("ALL");
@@ -85,6 +109,7 @@ function BusesPanel({ buses }: { buses: BusItem[] }) {
     model: "",
     capacity: "",
     status: "ACTIVE" as BusStatus,
+    routeId: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -204,6 +229,29 @@ function BusesPanel({ buses }: { buses: BusItem[] }) {
 
           <label className="space-y-1.5">
             <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
+              Assigned Route
+            </span>
+            <select
+              value={formState.routeId}
+              onChange={(event) =>
+                setFormState((prev) => ({
+                  ...prev,
+                  routeId: event.target.value,
+                }))
+              }
+              className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2.5 text-sm text-[#1f2633] outline-none ring-[#0a4cad] transition focus:ring-2"
+            >
+              <option value="">Unassigned</option>
+              {configuredRoutes.map((route) => (
+                <option key={route.id} value={route.id}>
+                  {route.routeLabel}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="space-y-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
               Model
             </span>
             <input
@@ -246,6 +294,7 @@ function BusesPanel({ buses }: { buses: BusItem[] }) {
                 model: formState.model,
                 capacity: Number(formState.capacity),
                 status: formState.status,
+                routeId: formState.routeId || null,
               }),
             });
 
@@ -261,6 +310,7 @@ function BusesPanel({ buses }: { buses: BusItem[] }) {
               model: "",
               capacity: "",
               status: "ACTIVE",
+              routeId: "",
             });
             setIsSubmitting(false);
             router.refresh();
@@ -397,6 +447,7 @@ function BusesPanel({ buses }: { buses: BusItem[] }) {
                             model: bus.model,
                             capacity: String(bus.capacity),
                             status: bus.status,
+                            routeId: bus.routeId ?? "",
                           })
                         }
                       >
@@ -457,6 +508,7 @@ function BusesPanel({ buses }: { buses: BusItem[] }) {
                       model: bus.model,
                       capacity: String(bus.capacity),
                       status: bus.status,
+                      routeId: bus.routeId ?? "",
                     })
                   }
                 >
@@ -573,6 +625,32 @@ function BusesPanel({ buses }: { buses: BusItem[] }) {
                   <option value="STANDBY">Standby</option>
                 </select>
               </label>
+              <label className="space-y-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
+                  Assigned Route
+                </span>
+                <select
+                  value={editBus.routeId}
+                  onChange={(event) =>
+                    setEditBus((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            routeId: event.target.value,
+                          }
+                        : prev,
+                    )
+                  }
+                  className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+                >
+                  <option value="">Unassigned</option>
+                  {configuredRoutes.map((route) => (
+                    <option key={route.id} value={route.id}>
+                      {route.routeLabel}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
             <div className="mt-6 flex items-center justify-end gap-3">
               <button
@@ -603,6 +681,7 @@ function BusesPanel({ buses }: { buses: BusItem[] }) {
                         model: editBus.model,
                         capacity,
                         status: editBus.status,
+                        routeId: editBus.routeId || null,
                       }),
                     },
                   );
@@ -1358,12 +1437,816 @@ function RoutesPanel({
   );
 }
 
+function StopsPanel({ stops }: { stops: StopItem[] }) {
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [editStop, setEditStop] = useState<{
+    id: string;
+    name: string;
+    rfidTag: string;
+    lat: string;
+    lng: string;
+  } | null>(null);
+  const [deleteStopId, setDeleteStopId] = useState<string | null>(null);
+  const [formState, setFormState] = useState({
+    name: "",
+    rfidTag: "",
+    lat: "",
+    lng: "",
+  });
+
+  const filteredStops = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return stops;
+    }
+    const term = searchQuery.toLowerCase();
+    return stops.filter((stop) =>
+      `${stop.name} ${stop.rfidTag}`.toLowerCase().includes(term),
+    );
+  }, [stops, searchQuery]);
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-[#cfd4e2] bg-white p-5 shadow-sm sm:p-6">
+        <div className="mb-5 flex items-center gap-2 text-[#1f2633]">
+          <PlusCircle className="h-5 w-5 text-[#0a4cad]" />
+          <h2 className="text-3xl font-extrabold tracking-tight max-md:text-2xl">
+            Add New Stop
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <label className="space-y-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
+              Stop Name
+            </span>
+            <input
+              type="text"
+              value={formState.name}
+              onChange={(event) =>
+                setFormState((prev) => ({
+                  ...prev,
+                  name: event.target.value,
+                }))
+              }
+              className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2.5 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
+              RFID Tag
+            </span>
+            <input
+              type="text"
+              value={formState.rfidTag}
+              onChange={(event) =>
+                setFormState((prev) => ({
+                  ...prev,
+                  rfidTag: event.target.value,
+                }))
+              }
+              className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2.5 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
+              Latitude
+            </span>
+            <input
+              type="number"
+              value={formState.lat}
+              onChange={(event) =>
+                setFormState((prev) => ({
+                  ...prev,
+                  lat: event.target.value,
+                }))
+              }
+              className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2.5 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
+              Longitude
+            </span>
+            <input
+              type="number"
+              value={formState.lng}
+              onChange={(event) =>
+                setFormState((prev) => ({
+                  ...prev,
+                  lng: event.target.value,
+                }))
+              }
+              className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2.5 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+            />
+          </label>
+        </div>
+
+        {errorMessage ? (
+          <p className="rounded-md bg-[#ffe8e8] px-3 py-2 text-sm font-medium text-[#a82121]">
+            {errorMessage}
+          </p>
+        ) : null}
+
+        <button
+          type="button"
+          disabled={isSubmitting}
+          onClick={async () => {
+            setErrorMessage(null);
+            if (
+              !formState.name ||
+              !formState.rfidTag ||
+              !formState.lat ||
+              !formState.lng
+            ) {
+              setErrorMessage("Please fill all stop fields.");
+              return;
+            }
+            const lat = Number(formState.lat);
+            const lng = Number(formState.lng);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+              setErrorMessage("Latitude and longitude must be numbers.");
+              return;
+            }
+
+            setIsSubmitting(true);
+            const response = await fetch("/api/admin/stops", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name: formState.name,
+                rfidTag: formState.rfidTag,
+                lat,
+                lng,
+              }),
+            });
+
+            if (!response.ok) {
+              const payload = (await response.json()) as { error?: string };
+              setErrorMessage(payload.error ?? "Failed to create stop.");
+              setIsSubmitting(false);
+              return;
+            }
+
+            setFormState({ name: "", rfidTag: "", lat: "", lng: "" });
+            setIsSubmitting(false);
+            router.refresh();
+          }}
+          className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#0a4cad] px-5 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          <Save className="h-4 w-4" />
+          {isSubmitting ? "Saving..." : "Save Stop"}
+        </button>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-[#cfd4e2] bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-[#d8deeb] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#1f2633]">
+            Manage All Stops
+          </h3>
+          <div className="relative w-full sm:w-56">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#737b8c]" />
+            <input
+              type="text"
+              placeholder="Search stops..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="w-full rounded-md border border-[#d4daea] bg-[#eef2ff] py-2 pl-9 pr-3 text-sm outline-none ring-[#0a4cad] transition focus:ring-2"
+            />
+          </div>
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
+          <table className="min-w-full border-collapse text-left">
+            <thead>
+              <tr className="bg-[#f1f4ff] text-[11px] font-bold uppercase tracking-[0.15em] text-[#586579]">
+                <th className="px-4 py-3">Stop</th>
+                <th className="px-4 py-3">RFID Tag</th>
+                <th className="px-4 py-3">Lat</th>
+                <th className="px-4 py-3">Lng</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#e0e5f1]">
+              {filteredStops.map((stop) => (
+                <tr key={stop.id} className="hover:bg-[#f9fbff]">
+                  <td className="px-4 py-4 font-bold text-[#1f2633]">
+                    {stop.name}
+                  </td>
+                  <td className="px-4 py-4 text-[#5b6272]">
+                    {stop.rfidTag}
+                  </td>
+                  <td className="px-4 py-4 text-[#5b6272]">
+                    {stop.lat.toFixed(5)}
+                  </td>
+                  <td className="px-4 py-4 text-[#5b6272]">
+                    {stop.lng.toFixed(5)}
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="flex justify-end gap-1">
+                      <button
+                        className="cursor-pointer rounded-md p-2 text-[#586579] transition-colors hover:bg-[#eef2ff] hover:text-[#0a4cad]"
+                        onClick={() =>
+                          setEditStop({
+                            id: stop.id,
+                            name: stop.name,
+                            rfidTag: stop.rfidTag,
+                            lat: String(stop.lat),
+                            lng: String(stop.lng),
+                          })
+                        }
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        className="cursor-pointer rounded-md p-2 text-[#586579] transition-colors hover:bg-[#fff1f1] hover:text-[#c33c45]"
+                        onClick={() => setDeleteStopId(stop.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {filteredStops.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-4 py-8 text-center text-sm font-medium text-[#737b8c]"
+                  >
+                    No stops found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="space-y-3 p-4 md:hidden">
+          {filteredStops.map((stop) => (
+            <article
+              key={stop.id}
+              className="rounded-xl border border-[#dbe2f0] bg-[#fbfcff] p-4"
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <h4 className="text-base font-bold text-[#1f2633]">
+                  {stop.name}
+                </h4>
+                <span className="rounded-full bg-[#eef2ff] px-2.5 py-1 text-[10px] font-bold uppercase text-[#0a4cad]">
+                  {stop.rfidTag}
+                </span>
+              </div>
+              <p className="text-xs text-[#586579]">
+                Lat: {stop.lat.toFixed(5)} | Lng: {stop.lng.toFixed(5)}
+              </p>
+              <div className="mt-3 flex justify-end gap-2">
+                <button
+                  className="cursor-pointer rounded-md bg-white p-2 text-[#586579] ring-1 ring-[#dbe2f0]"
+                  onClick={() =>
+                    setEditStop({
+                      id: stop.id,
+                      name: stop.name,
+                      rfidTag: stop.rfidTag,
+                      lat: String(stop.lat),
+                      lng: String(stop.lng),
+                    })
+                  }
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <button
+                  className="cursor-pointer rounded-md bg-white p-2 text-[#c33c45] ring-1 ring-[#dbe2f0]"
+                  onClick={() => setDeleteStopId(stop.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {editStop ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-4">
+              <h3 className="text-xl font-bold text-[#1f2633]">Edit Stop</h3>
+              <p className="text-sm text-[#586579]">
+                Update the RFID and coordinates for this stop.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <label className="space-y-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
+                  Stop Name
+                </span>
+                <input
+                  type="text"
+                  value={editStop.name}
+                  onChange={(event) =>
+                    setEditStop((prev) =>
+                      prev ? { ...prev, name: event.target.value } : prev,
+                    )
+                  }
+                  className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
+                  RFID Tag
+                </span>
+                <input
+                  type="text"
+                  value={editStop.rfidTag}
+                  onChange={(event) =>
+                    setEditStop((prev) =>
+                      prev ? { ...prev, rfidTag: event.target.value } : prev,
+                    )
+                  }
+                  className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
+                  Latitude
+                </span>
+                <input
+                  type="number"
+                  value={editStop.lat}
+                  onChange={(event) =>
+                    setEditStop((prev) =>
+                      prev ? { ...prev, lat: event.target.value } : prev,
+                    )
+                  }
+                  className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
+                  Longitude
+                </span>
+                <input
+                  type="number"
+                  value={editStop.lng}
+                  onChange={(event) =>
+                    setEditStop((prev) =>
+                      prev ? { ...prev, lng: event.target.value } : prev,
+                    )
+                  }
+                  className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+                />
+              </label>
+            </div>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setEditStop(null)}
+                className="rounded-lg border border-[#d4daea] px-4 py-2 text-sm font-semibold text-[#485062]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!editStop) {
+                    return;
+                  }
+                  const lat = Number(editStop.lat);
+                  const lng = Number(editStop.lng);
+                  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                    setErrorMessage("Latitude and longitude must be numbers.");
+                    return;
+                  }
+                  const response = await fetch(
+                    `/api/admin/stops/${editStop.id}`,
+                    {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        name: editStop.name,
+                        rfidTag: editStop.rfidTag,
+                        lat,
+                        lng,
+                      }),
+                    },
+                  );
+                  if (!response.ok) {
+                    const payload = (await response.json()) as {
+                      error?: string;
+                    };
+                    setErrorMessage(payload.error ?? "Failed to update stop.");
+                    return;
+                  }
+                  setEditStop(null);
+                  router.refresh();
+                }}
+                className="rounded-lg bg-[#0a4cad] px-4 py-2 text-sm font-semibold text-white"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {deleteStopId ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-[#1f2633]">
+              Delete stop?
+            </h3>
+            <p className="mt-2 text-sm text-[#586579]">
+              This action cannot be undone.
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteStopId(null)}
+                className="rounded-lg border border-[#d4daea] px-4 py-2 text-sm font-semibold text-[#485062]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const response = await fetch(
+                    `/api/admin/stops/${deleteStopId}`,
+                    { method: "DELETE" },
+                  );
+                  if (!response.ok) {
+                    const payload = (await response.json()) as {
+                      error?: string;
+                    };
+                    setErrorMessage(payload.error ?? "Failed to delete stop.");
+                    return;
+                  }
+                  setDeleteStopId(null);
+                  router.refresh();
+                }}
+                className="rounded-lg bg-[#c33c45] px-4 py-2 text-sm font-semibold text-white"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function RouteStopsPanel({
+  configuredRoutes,
+  stops,
+  routeStops,
+}: {
+  configuredRoutes: ConfiguredRoute[];
+  stops: StopItem[];
+  routeStops: RouteStopItem[];
+}) {
+  const router = useRouter();
+  const [selectedRouteId, setSelectedRouteId] = useState("");
+  const [selectedStopIds, setSelectedStopIds] = useState<string[]>([]);
+  const [orderValue, setOrderValue] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [orderedStops, setOrderedStops] = useState<RouteStopItem[]>([]);
+  const [originalOrder, setOriginalOrder] = useState<Record<string, number>>(
+    {},
+  );
+  const [deleteRouteStopId, setDeleteRouteStopId] = useState<string | null>(
+    null,
+  );
+
+  const filteredRouteStops = useMemo(() => {
+    if (!selectedRouteId) {
+      return routeStops;
+    }
+    return routeStops.filter((item) => item.routeId === selectedRouteId);
+  }, [routeStops, selectedRouteId]);
+
+  useEffect(() => {
+    setOrderedStops(filteredRouteStops);
+    const initialOrder = filteredRouteStops.reduce<Record<string, number>>(
+      (acc, item, index) => {
+        acc[item.id] = item.order;
+        return acc;
+      },
+      {},
+    );
+    setOriginalOrder(initialOrder);
+  }, [filteredRouteStops]);
+
+  const handleReorder = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) {
+      return;
+    }
+    setOrderedStops((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  };
+
+  const hasReorderChanges = useMemo(() => {
+    return orderedStops.some((item, index) => item.order !== index + 1);
+  }, [orderedStops]);
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-[#cfd4e2] bg-white p-5 shadow-sm sm:p-6">
+        <div className="mb-5 flex items-center gap-2 text-[#1f2633]">
+          <ListFilter className="h-5 w-5 text-[#0a4cad]" />
+          <h2 className="text-3xl font-extrabold tracking-tight max-md:text-2xl">
+            Assign Stops to Route
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <label className="space-y-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
+              Route
+            </span>
+            <select
+              value={selectedRouteId}
+              onChange={(event) => setSelectedRouteId(event.target.value)}
+              className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+            >
+              <option value="">Select route</option>
+              {configuredRoutes.map((route) => (
+                <option key={route.id} value={route.id}>
+                  {route.routeLabel}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
+              Stops
+            </span>
+            <select
+              multiple
+              value={selectedStopIds}
+              onChange={(event) => {
+                const values = Array.from(event.target.selectedOptions).map(
+                  (option) => option.value,
+                );
+                setSelectedStopIds(values);
+              }}
+              className="h-32 w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+            >
+              {stops.map((stop) => (
+                <option key={stop.id} value={stop.id}>
+                  {stop.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#737b8c]">
+              Hold Ctrl/Cmd to select multiple
+            </p>
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
+              Start Order
+            </span>
+            <input
+              type="number"
+              value={orderValue}
+              onChange={(event) => setOrderValue(event.target.value)}
+              className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+            />
+          </label>
+        </div>
+
+        {errorMessage ? (
+          <p className="rounded-md bg-[#ffe8e8] px-3 py-2 text-sm font-medium text-[#a82121]">
+            {errorMessage}
+          </p>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={async () => {
+            setErrorMessage(null);
+            if (!selectedRouteId || selectedStopIds.length === 0 || !orderValue) {
+              setErrorMessage("Please select route, stops, and order.");
+              return;
+            }
+            const order = Number(orderValue);
+            if (!Number.isFinite(order) || order <= 0) {
+              setErrorMessage("Order must be a positive number.");
+              return;
+            }
+            for (const [index, stopId] of selectedStopIds.entries()) {
+              const response = await fetch("/api/admin/route-stops", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  routeId: selectedRouteId,
+                  stopId,
+                  order: order + index,
+                }),
+              });
+              if (!response.ok) {
+                const payload = (await response.json()) as { error?: string };
+                setErrorMessage(
+                  payload.error ?? "Failed to add stops to route.",
+                );
+                return;
+              }
+            }
+            setSelectedStopIds([]);
+            setOrderValue("");
+            router.refresh();
+          }}
+          className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#0a4cad] px-5 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90"
+        >
+          <Save className="h-4 w-4" />
+          Add Stop
+        </button>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-[#cfd4e2] bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-[#d8deeb] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#1f2633]">
+            Route Stop Order
+          </h3>
+          <button
+            type="button"
+            disabled={!selectedRouteId || orderedStops.length === 0 || !hasReorderChanges}
+            onClick={async () => {
+              setErrorMessage(null);
+              for (const [index, item] of orderedStops.entries()) {
+                const newOrder = index + 1;
+                if (originalOrder[item.id] === newOrder) {
+                  continue;
+                }
+                const response = await fetch(
+                  `/api/admin/route-stops/${item.id}`,
+                  {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ order: newOrder }),
+                  },
+                );
+                if (!response.ok) {
+                  const payload = (await response.json()) as { error?: string };
+                  setErrorMessage(payload.error ?? "Failed to update order.");
+                  return;
+                }
+              }
+              router.refresh();
+            }}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#0a4cad] px-4 py-2 text-xs font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Save className="h-4 w-4" />
+            Save Order
+          </button>
+        </div>
+        <div className="hidden overflow-x-auto md:block">
+          <table className="min-w-full border-collapse text-left">
+            <thead>
+              <tr className="bg-[#f1f4ff] text-[11px] font-bold uppercase tracking-[0.15em] text-[#586579]">
+                <th className="px-4 py-3">Route</th>
+                <th className="px-4 py-3">Stop</th>
+                <th className="px-4 py-3">Order</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#e0e5f1]">
+              {!selectedRouteId ? (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-4 py-8 text-center text-sm font-medium text-[#737b8c]"
+                  >
+                    Select a route to manage its stops.
+                  </td>
+                </tr>
+              ) : (
+                orderedStops.map((item, index) => {
+                const routeLabel =
+                  configuredRoutes.find((route) => route.id === item.routeId)
+                    ?.routeLabel ?? "Unknown route";
+                return (
+                  <tr key={item.id} className="hover:bg-[#f9fbff]">
+                    <td className="px-4 py-4 font-bold text-[#1f2633]">
+                      {routeLabel}
+                    </td>
+                    <td className="px-4 py-4 text-[#5b6272]">
+                      {item.stopName}
+                    </td>
+                    <td
+                      className="px-4 py-4 text-[#5b6272]"
+                      draggable
+                      onDragStart={(event) => {
+                        event.dataTransfer.setData(
+                          "text/plain",
+                          String(index),
+                        );
+                      }}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        const fromIndex = Number(
+                          event.dataTransfer.getData("text/plain"),
+                        );
+                        handleReorder(fromIndex, index);
+                      }}
+                    >
+                      <span className="inline-flex cursor-grab items-center gap-2 rounded-full bg-[#eef2ff] px-3 py-1 text-xs font-semibold text-[#0a4cad]">
+                        #{index + 1}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          className="cursor-pointer rounded-md p-2 text-[#586579] transition-colors hover:bg-[#fff1f1] hover:text-[#c33c45]"
+                          onClick={() => setDeleteRouteStopId(item.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+              )}
+              {selectedRouteId && orderedStops.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-4 py-8 text-center text-sm font-medium text-[#737b8c]"
+                  >
+                    No route stops yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+
+      {deleteRouteStopId ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-[#1f2633]">
+              Remove stop from route?
+            </h3>
+            <p className="mt-2 text-sm text-[#586579]">
+              This will delete the stop assignment only.
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteRouteStopId(null)}
+                className="rounded-lg border border-[#d4daea] px-4 py-2 text-sm font-semibold text-[#485062]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const response = await fetch(
+                    `/api/admin/route-stops/${deleteRouteStopId}`,
+                    { method: "DELETE" },
+                  );
+                  if (!response.ok) {
+                    const payload = (await response.json()) as {
+                      error?: string;
+                    };
+                    setErrorMessage(
+                      payload.error ?? "Failed to delete route stop.",
+                    );
+                    return;
+                  }
+                  setDeleteRouteStopId(null);
+                  router.refresh();
+                }}
+                className="rounded-lg bg-[#c33c45] px-4 py-2 text-sm font-semibold text-white"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function AdminClientPage({
   buses,
   configuredRoutes,
+  stops,
+  routeStops,
 }: {
   buses: BusItem[];
   configuredRoutes: ConfiguredRoute[];
+  stops: StopItem[];
+  routeStops: RouteStopItem[];
 }) {
   const [tab, setTab] = useState<AdminTab>("buses");
 
@@ -1407,13 +2290,47 @@ export default function AdminClientPage({
             <Route className="h-4 w-4" />
             Routes
           </button>
+          <button
+            role="tab"
+            aria-selected={tab === "stops"}
+            onClick={() => setTab("stops")}
+            className={`inline-flex cursor-pointer items-center gap-2 border-b-2 px-1 py-2.5 text-sm font-bold transition-colors ${
+              tab === "stops"
+                ? "border-[#0a4cad] text-[#0a4cad]"
+                : "border-transparent text-[#586579] hover:text-[#0a4cad]"
+            }`}
+          >
+            <Map className="h-4 w-4" />
+            Stops
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === "route-stops"}
+            onClick={() => setTab("route-stops")}
+            className={`inline-flex cursor-pointer items-center gap-2 border-b-2 px-1 py-2.5 text-sm font-bold transition-colors ${
+              tab === "route-stops"
+                ? "border-[#0a4cad] text-[#0a4cad]"
+                : "border-transparent text-[#586579] hover:text-[#0a4cad]"
+            }`}
+          >
+            <ListFilter className="h-4 w-4" />
+            Route Stops
+          </button>
         </div>
       </div>
 
       {tab === "buses" ? (
-        <BusesPanel buses={buses} />
-      ) : (
+        <BusesPanel buses={buses} configuredRoutes={configuredRoutes} />
+      ) : tab === "routes" ? (
         <RoutesPanel configuredRoutes={configuredRoutes} />
+      ) : tab === "stops" ? (
+        <StopsPanel stops={stops} />
+      ) : (
+        <RouteStopsPanel
+          configuredRoutes={configuredRoutes}
+          stops={stops}
+          routeStops={routeStops}
+        />
       )}
     </section>
   );

@@ -44,7 +44,7 @@ export default function LoginPage() {
 
         <div className="relative max-w-xl">
           <h1 className="mb-6 text-5xl font-extrabold leading-[1.05] tracking-tight xl:text-6xl">
-            Precision Fleet
+            Bus Tracker App
             <br />
             Management.
           </h1>
@@ -72,7 +72,7 @@ export default function LoginPage() {
               <LineChart className="h-5 w-5" />
             </span>
             <span className="text-lg font-bold text-[#0c49a6]">
-              Kinetic Precision
+              Bus Tracker App
             </span>
           </div>
 

@@ -58,7 +58,7 @@ export default function RegisterPage() {
 
         <div className="relative max-w-xl">
           <h1 className="mb-6 text-5xl font-extrabold leading-[1.05] tracking-tight xl:text-6xl">
-            Precision Fleet
+            Bus Tracker App
             <br />
             Management.
           </h1>

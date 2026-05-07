@@ -6,6 +6,7 @@ export type AdminBusItem = {
   model: string;
   capacity: number;
   status: "ACTIVE" | "REPAIR" | "STANDBY";
+  routeId: string | null;
 };
 
 export type AdminRouteItem = {
@@ -19,6 +20,22 @@ export type AdminRouteItem = {
   status: "ACTIVE" | "DRAFT" | "INACTIVE";
 };
 
+export type AdminStopItem = {
+  id: string;
+  name: string;
+  rfidTag: string;
+  lat: number;
+  lng: number;
+};
+
+export type AdminRouteStopItem = {
+  id: string;
+  routeId: string;
+  stopId: string;
+  order: number;
+  stopName: string;
+};
+
 export async function getAdminBuses(): Promise<AdminBusItem[]> {
   const buses = await prisma.bus.findMany({
     select: {
@@ -27,6 +44,7 @@ export async function getAdminBuses(): Promise<AdminBusItem[]> {
       model: true,
       capacity: true,
       status: true,
+      routeId: true,
     },
     orderBy: { fleetCode: "asc" },
   });
@@ -37,6 +55,7 @@ export async function getAdminBuses(): Promise<AdminBusItem[]> {
     model: bus.model,
     capacity: bus.capacity,
     status: bus.status,
+    routeId: bus.routeId,
   }));
 }
 
@@ -63,5 +82,43 @@ export async function getAdminRoutes(): Promise<AdminRouteItem[]> {
     coverage: route.coverage,
     type: route.scheduleType,
     status: route.configStatus,
+  }));
+}
+
+export async function getAdminStops(): Promise<AdminStopItem[]> {
+  const stops = await prisma.stop.findMany({
+    select: {
+      id: true,
+      name: true,
+      rfidTag: true,
+      lat: true,
+      lng: true,
+    },
+    orderBy: { name: "asc" },
+  });
+
+  return stops;
+}
+
+export async function getAdminRouteStops(): Promise<AdminRouteStopItem[]> {
+  const routeStops = await prisma.routeStop.findMany({
+    select: {
+      id: true,
+      routeId: true,
+      stopId: true,
+      order: true,
+      stop: {
+        select: { name: true },
+      },
+    },
+    orderBy: [{ routeId: "asc" }, { order: "asc" }],
+  });
+
+  return routeStops.map((routeStop) => ({
+    id: routeStop.id,
+    routeId: routeStop.routeId,
+    stopId: routeStop.stopId,
+    order: routeStop.order,
+    stopName: routeStop.stop.name,
   }));
 }
