@@ -1929,6 +1929,7 @@ function RouteStopsPanel({
   const router = useRouter();
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const [selectedStopIds, setSelectedStopIds] = useState<string[]>([]);
+  const [stopSearchQuery, setStopSearchQuery] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [orderedStops, setOrderedStops] = useState<RouteStopItem[]>([]);
   const [originalOrder, setOriginalOrder] = useState<Record<string, number>>(
@@ -1995,6 +1996,16 @@ function RouteStopsPanel({
     return maxOrder + 1;
   }, [selectedRouteStops]);
 
+  const filteredStops = useMemo(() => {
+    if (!stopSearchQuery.trim()) {
+      return stops;
+    }
+    const term = stopSearchQuery.toLowerCase();
+    return stops.filter((stop) =>
+      `${stop.name} ${stop.rfidTag}`.toLowerCase().includes(term),
+    );
+  }, [stops, stopSearchQuery]);
+
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-[#cfd4e2] bg-white p-5 shadow-sm sm:p-6">
@@ -2027,8 +2038,18 @@ function RouteStopsPanel({
             <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
               Stops
             </span>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#737b8c]" />
+              <input
+                type="text"
+                value={stopSearchQuery}
+                onChange={(event) => setStopSearchQuery(event.target.value)}
+                placeholder="Search stops..."
+                className="w-full rounded-lg border border-[#c7cfe1] bg-white py-2 pl-9 pr-3 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+              />
+            </div>
             <div className="h-44 space-y-2 overflow-auto rounded-lg border border-[#c7cfe1] bg-[#eef2ff] p-2">
-              {stops.map((stop) => {
+              {filteredStops.map((stop) => {
                 const selected = selectedStopIds.includes(stop.id);
                 const alreadyAssigned = assignedStopIds.has(stop.id);
                 return (
@@ -2062,6 +2083,9 @@ function RouteStopsPanel({
                   </button>
                 );
               })}
+              {filteredStops.length === 0 ? (
+                <p className="px-2 py-3 text-sm text-[#737b8c]">No stops found.</p>
+              ) : null}
             </div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#737b8c]">
               Next order starts at {nextOrder}
