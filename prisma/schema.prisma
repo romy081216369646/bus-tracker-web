@@ -48,6 +48,11 @@ enum BusEventType {
   RFID_STOP
 }
 
+enum AuditLogStatus {
+  SUCCESS
+  FAILED
+}
+
 model User {
   id            String    @id
   name          String
@@ -59,8 +64,30 @@ model User {
   updatedAt     DateTime
   sessions      Session[]
   accounts      Account[]
+  auditLogs     AuditLog[]
 
   @@map("user")
+}
+
+model AuditLog {
+  id          String         @id @default(cuid())
+  action      String
+  entity      String
+  entityId    String?
+  status      AuditLogStatus @default(SUCCESS)
+  actorUserId String?
+  actorRole   String?
+  ipAddress   String?
+  userAgent   String?
+  details     Json?
+  createdAt   DateTime       @default(now())
+
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([entity, entityId])
+  @@index([actorUserId])
+  @@index([status])
 }
 
 model Session {

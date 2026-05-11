@@ -36,6 +36,28 @@ export type AdminRouteStopItem = {
   stopName: string;
 };
 
+export type AdminLogItem = {
+  id: string;
+  createdAt: string;
+  action: string;
+  entity: string;
+  entityId: string | null;
+  status: "SUCCESS" | "FAILED";
+  actorName: string;
+  actorRole: string;
+  ipAddress: string;
+  details: string;
+};
+
+export type AdminArrivalLogItem = {
+  id: string;
+  createdAt: string;
+  busId: string;
+  routeLabel: string;
+  stopName: string;
+  rfidTag: string;
+};
+
 export async function getAdminBuses(): Promise<AdminBusItem[]> {
   const buses = await prisma.bus.findMany({
     select: {
@@ -121,4 +143,79 @@ export async function getAdminRouteStops(): Promise<AdminRouteStopItem[]> {
     order: routeStop.order,
     stopName: routeStop.stop.name,
   }));
+}
+
+export async function getAdminLogs(limit = 200): Promise<AdminLogItem[]> {
+  const logs = await prisma.auditLog.findMany({
+    take: limit,
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      createdAt: true,
+      action: true,
+      entity: true,
+      entityId: true,
+      status: true,
+      actorRole: true,
+      ipAddress: true,
+      details: true,
+      actor: {
+        select: {
+          name: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  return logs.map((log) => ({
+    id: log.id,
+    createdAt: log.createdAt.toISOString(),
+    action: log.action,
+    entity: log.entity,
+    entityId: log.entityId,
+    status: log.status,
+    actorName: log.actor?.name ?? log.actor?.email ?? "System",
+    actorRole: log.actorRole ?? "-",
+    ipAddress: log.ipAddress ?? "-",
+    details: log.details ? JSON.stringify(log.details) : "-",
+  }));
+}
+
+export async function getAdminArrivalLogs(
+  limit = 200,
+): Promise<AdminArrivalLogItem[]> {
+  const events = await prisma.busEvent.findMany({
+    where: { type: "RFID_STOP" },
+    take: limit,
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      createdAt: true,
+      rfidTag: true,
+      stop: { select: { name: true } },
+      bus: {
+        select: {
+          id: true,
+          fleetCode: true,
+          route: { select: { code: true, name: true } },
+        },
+      },
+    },
+  });
+
+  return events.map((event) => {
+    const routeLabel = event.bus.route
+      ? `Route ${event.bus.route.code} - ${event.bus.route.name}`
+      : "Unassigned";
+
+    return {
+      id: event.id,
+      createdAt: event.createdAt.toISOString(),
+      busId: event.bus.fleetCode ?? event.bus.id,
+      routeLabel,
+      stopName: event.stop?.name ?? "Unknown",
+      rfidTag: event.rfidTag ?? "-",
+    };
+  });
 }

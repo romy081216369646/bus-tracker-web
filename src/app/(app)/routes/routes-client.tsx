@@ -426,31 +426,22 @@ export default function RoutesClientPage({
                   No stops assigned to this route yet.
                 </p>
               ) : (
-                <div className="overflow-x-auto pb-2">
-                  <div className="min-w-max px-1 py-3">
-                    <div className="relative flex items-start gap-0">
-                      {viewingRoute.stops.map((stop, index) => {
-                        const isLast = index === viewingRoute.stops.length - 1;
-                        return (
-                          <div
-                            key={`${viewingRoute.id}-${stop}-${index}`}
-                            className="relative flex items-start"
-                          >
-                            <div className="flex w-40 flex-col items-center text-center">
-                              <span className="mb-2 line-clamp-2 min-h-10 text-xs font-semibold text-[#1f2633]">
-                                {stop}
-                              </span>
-                              <span className="z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#0040a1] text-xs font-bold text-white shadow-sm">
-                                {index + 1}
-                              </span>
-                            </div>
-                            {!isLast ? (
-                              <span className="mt-[2.9rem] block h-1 w-16 rounded-full bg-[#c8d8ff]" />
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
+                <div className="relative px-2 py-3">
+                  <span className="pointer-events-none absolute left-4 right-4 top-[3.2rem] h-1 rounded-full bg-[#c8d8ff]" />
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(90px,1fr))] gap-4">
+                    {viewingRoute.stops.map((stop, index) => (
+                      <div
+                        key={`${viewingRoute.id}-${stop}-${index}`}
+                        className="flex flex-col items-center text-center"
+                      >
+                        <span className="mb-2 line-clamp-2 min-h-10 text-xs font-semibold text-[#1f2633]">
+                          {stop}
+                        </span>
+                        <span className="z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#0040a1] text-xs font-bold text-white shadow-sm">
+                          {index + 1}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

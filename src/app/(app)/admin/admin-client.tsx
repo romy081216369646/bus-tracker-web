@@ -12,12 +12,20 @@ import {
   Route,
   Save,
   Search,
+  ScrollText,
+  TrainFront,
   Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type AdminTab = "buses" | "routes" | "stops" | "route-stops";
+type AdminTab =
+  | "buses"
+  | "routes"
+  | "stops"
+  | "route-stops"
+  | "logs"
+  | "arrival-logs";
 
 type BusStatus = "ACTIVE" | "REPAIR" | "STANDBY";
 type RouteStatus = "ON_SCHEDULE" | "MINOR_DELAYS" | "DELAYED";
@@ -60,6 +68,28 @@ type RouteStopItem = {
   stopId: string;
   order: number;
   stopName: string;
+};
+
+type LogItem = {
+  id: string;
+  createdAt: string;
+  action: string;
+  entity: string;
+  entityId: string | null;
+  status: "SUCCESS" | "FAILED";
+  actorName: string;
+  actorRole: string;
+  ipAddress: string;
+  details: string;
+};
+
+type ArrivalLogItem = {
+  id: string;
+  createdAt: string;
+  busId: string;
+  routeLabel: string;
+  stopName: string;
+  rfidTag: string;
 };
 
 type BusDraft = {
@@ -2318,16 +2348,253 @@ function RouteStopsPanel({
   );
 }
 
+function LogsPanel({ logs }: { logs: LogItem[] }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<LogItem["status"] | "ALL">(
+    "ALL",
+  );
+
+  const filteredLogs = useMemo(() => {
+    const term = searchQuery.trim().toLowerCase();
+    return logs.filter((item) => {
+      const matchesSearch =
+        term === "" ||
+        `${item.action} ${item.entity} ${item.entityId ?? ""} ${item.actorName} ${item.actorRole} ${item.ipAddress} ${item.details}`
+          .toLowerCase()
+          .includes(term);
+      const matchesStatus =
+        statusFilter === "ALL" || item.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [logs, searchQuery, statusFilter]);
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-[#cfd4e2] bg-white shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-[#d8deeb] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#1f2633]">
+          System Logs (Latest 200)
+        </h3>
+        <div className="flex items-center gap-3">
+          <div className="relative w-full sm:w-64">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#737b8c]" />
+            <input
+              type="text"
+              placeholder="Search logs..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="w-full rounded-md border border-[#d4daea] bg-[#eef2ff] py-2 pl-9 pr-3 text-sm outline-none ring-[#0a4cad] transition focus:ring-2"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(event) =>
+              setStatusFilter(event.target.value as LogItem["status"] | "ALL")
+            }
+            className="cursor-pointer rounded-md border border-[#d4daea] bg-[#eef2ff] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#485062] outline-none ring-[#0a4cad] focus:ring-2"
+          >
+            <option value="ALL">All</option>
+            <option value="SUCCESS">Success</option>
+            <option value="FAILED">Failed</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
+        <table className="min-w-full border-collapse text-left">
+          <thead>
+            <tr className="bg-[#f1f4ff] text-[11px] font-bold uppercase tracking-[0.15em] text-[#586579]">
+              <th className="px-4 py-3">Time</th>
+              <th className="px-4 py-3">Action</th>
+              <th className="px-4 py-3">Entity</th>
+              <th className="px-4 py-3">Actor</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">IP</th>
+              <th className="px-4 py-3">Details</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#e0e5f1]">
+            {filteredLogs.map((item) => (
+              <tr key={item.id} className="hover:bg-[#f9fbff]">
+                <td className="px-4 py-3 text-sm text-[#586579]">
+                  {new Date(item.createdAt).toLocaleString()}
+                </td>
+                <td className="px-4 py-3 font-bold text-[#1f2633]">{item.action}</td>
+                <td className="px-4 py-3 text-[#586579]">
+                  {item.entity}
+                  {item.entityId ? ` (${item.entityId})` : ""}
+                </td>
+                <td className="px-4 py-3 text-[#586579]">
+                  {item.actorName} ({item.actorRole})
+                </td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${
+                      item.status === "SUCCESS"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-rose-100 text-rose-700"
+                    }`}
+                  >
+                    {item.status}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-[#586579]">{item.ipAddress}</td>
+                <td className="max-w-md truncate px-4 py-3 text-[#586579]" title={item.details}>
+                  {item.details}
+                </td>
+              </tr>
+            ))}
+            {filteredLogs.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-sm text-[#737b8c]">
+                  No logs found.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="space-y-3 p-4 md:hidden">
+        {filteredLogs.map((item) => (
+          <article key={item.id} className="rounded-xl border border-[#dbe2f0] bg-[#fbfcff] p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-bold text-[#1f2633]">{item.action}</p>
+              <span
+                className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${
+                  item.status === "SUCCESS"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-rose-100 text-rose-700"
+                }`}
+              >
+                {item.status}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-[#586579]">
+              {new Date(item.createdAt).toLocaleString()}
+            </p>
+            <p className="mt-1 text-sm text-[#586579]">
+              {item.entity}
+              {item.entityId ? ` (${item.entityId})` : ""}
+            </p>
+            <p className="text-xs text-[#586579]">
+              {item.actorName} ({item.actorRole}) • {item.ipAddress}
+            </p>
+            <p className="mt-2 text-xs text-[#586579] break-all">{item.details}</p>
+          </article>
+        ))}
+        {filteredLogs.length === 0 ? (
+          <div className="rounded-xl border border-[#dbe2f0] bg-[#fbfcff] p-4 text-center text-sm text-[#737b8c]">
+            No logs found.
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function ArrivalLogsPanel({ logs }: { logs: ArrivalLogItem[] }) {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredLogs = useMemo(() => {
+    const term = searchQuery.trim().toLowerCase();
+    return logs.filter((item) => {
+      if (!term) {
+        return true;
+      }
+      return `${item.busId} ${item.routeLabel} ${item.stopName} ${item.rfidTag}`
+        .toLowerCase()
+        .includes(term);
+    });
+  }, [logs, searchQuery]);
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-[#cfd4e2] bg-white shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-[#d8deeb] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#1f2633]">
+          Arrival Logs (Latest 200)
+        </h3>
+        <div className="relative w-full sm:w-64">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#737b8c]" />
+          <input
+            type="text"
+            placeholder="Search arrivals..."
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            className="w-full rounded-md border border-[#d4daea] bg-[#eef2ff] py-2 pl-9 pr-3 text-sm outline-none ring-[#0a4cad] transition focus:ring-2"
+          />
+        </div>
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
+        <table className="min-w-full border-collapse text-left">
+          <thead>
+            <tr className="bg-[#f1f4ff] text-[11px] font-bold uppercase tracking-[0.15em] text-[#586579]">
+              <th className="px-4 py-3">Time</th>
+              <th className="px-4 py-3">Bus</th>
+              <th className="px-4 py-3">Route</th>
+              <th className="px-4 py-3">Stop</th>
+              <th className="px-4 py-3">RFID</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#e0e5f1]">
+            {filteredLogs.map((item) => (
+              <tr key={item.id} className="hover:bg-[#f9fbff]">
+                <td className="px-4 py-3 text-sm text-[#586579]">
+                  {new Date(item.createdAt).toLocaleString()}
+                </td>
+                <td className="px-4 py-3 font-bold text-[#1f2633]">{item.busId}</td>
+                <td className="px-4 py-3 text-[#586579]">{item.routeLabel}</td>
+                <td className="px-4 py-3 text-[#586579]">{item.stopName}</td>
+                <td className="px-4 py-3 text-[#586579]">{item.rfidTag}</td>
+              </tr>
+            ))}
+            {filteredLogs.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-sm text-[#737b8c]">
+                  No arrival logs found.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="space-y-3 p-4 md:hidden">
+        {filteredLogs.map((item) => (
+          <article key={item.id} className="rounded-xl border border-[#dbe2f0] bg-[#fbfcff] p-4">
+            <p className="text-sm font-bold text-[#1f2633]">{item.busId}</p>
+            <p className="mt-1 text-xs text-[#586579]">
+              {new Date(item.createdAt).toLocaleString()}
+            </p>
+            <p className="mt-2 text-sm text-[#586579]">{item.routeLabel}</p>
+            <p className="text-sm text-[#586579]">Stop: {item.stopName}</p>
+            <p className="text-xs text-[#586579]">RFID: {item.rfidTag}</p>
+          </article>
+        ))}
+        {filteredLogs.length === 0 ? (
+          <div className="rounded-xl border border-[#dbe2f0] bg-[#fbfcff] p-4 text-center text-sm text-[#737b8c]">
+            No arrival logs found.
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 export default function AdminClientPage({
   buses,
   configuredRoutes,
   stops,
   routeStops,
+  logs,
+  arrivalLogs,
 }: {
   buses: BusItem[];
   configuredRoutes: ConfiguredRoute[];
   stops: StopItem[];
   routeStops: RouteStopItem[];
+  logs: LogItem[];
+  arrivalLogs: ArrivalLogItem[];
 }) {
   const [tab, setTab] = useState<AdminTab>("buses");
 
@@ -2397,6 +2664,32 @@ export default function AdminClientPage({
             <ListFilter className="h-4 w-4" />
             Route Stops
           </button>
+          <button
+            role="tab"
+            aria-selected={tab === "arrival-logs"}
+            onClick={() => setTab("arrival-logs")}
+            className={`inline-flex cursor-pointer items-center gap-2 border-b-2 px-1 py-2.5 text-sm font-bold transition-colors ${
+              tab === "arrival-logs"
+                ? "border-[#0a4cad] text-[#0a4cad]"
+                : "border-transparent text-[#586579] hover:text-[#0a4cad]"
+            }`}
+          >
+            <TrainFront className="h-4 w-4" />
+            Arrivals
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === "logs"}
+            onClick={() => setTab("logs")}
+            className={`inline-flex cursor-pointer items-center gap-2 border-b-2 px-1 py-2.5 text-sm font-bold transition-colors ${
+              tab === "logs"
+                ? "border-[#0a4cad] text-[#0a4cad]"
+                : "border-transparent text-[#586579] hover:text-[#0a4cad]"
+            }`}
+          >
+            <ScrollText className="h-4 w-4" />
+            Logs
+          </button>
         </div>
       </div>
 
@@ -2406,12 +2699,16 @@ export default function AdminClientPage({
         <RoutesPanel configuredRoutes={configuredRoutes} />
       ) : tab === "stops" ? (
         <StopsPanel stops={stops} />
-      ) : (
+      ) : tab === "route-stops" ? (
         <RouteStopsPanel
           configuredRoutes={configuredRoutes}
           stops={stops}
           routeStops={routeStops}
         />
+      ) : tab === "arrival-logs" ? (
+        <ArrivalLogsPanel logs={arrivalLogs} />
+      ) : (
+        <LogsPanel logs={logs} />
       )}
     </section>
   );

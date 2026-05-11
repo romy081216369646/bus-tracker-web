@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "seed": "tsx prisma/seed.ts",
+    "prisma:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "^1.6.5",
@@ -32,6 +34,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   }
 }
