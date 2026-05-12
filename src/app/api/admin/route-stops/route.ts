@@ -26,6 +26,7 @@ export async function POST(request: Request) {
     routeId?: string;
     stopId?: string;
     order?: number;
+    schedule?: string;
   };
 
   if (!body.routeId || !body.stopId || body.order === undefined) {
@@ -48,6 +49,7 @@ export async function POST(request: Request) {
         routeId: body.routeId,
         stopId: body.stopId,
         order: body.order,
+        schedule: body.schedule ?? "00:00",
       },
     });
 

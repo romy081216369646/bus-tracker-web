@@ -68,6 +68,7 @@ type RouteStopItem = {
   stopId: string;
   order: number;
   stopName: string;
+  schedule: string;
 };
 
 type LogItem = {
@@ -1959,6 +1960,8 @@ function RouteStopsPanel({
   const router = useRouter();
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const [selectedStopIds, setSelectedStopIds] = useState<string[]>([]);
+  const [scheduleBase, setScheduleBase] = useState("07:00");
+  const [scheduleStepMinutes, setScheduleStepMinutes] = useState("5");
   const [stopSearchQuery, setStopSearchQuery] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [orderedStops, setOrderedStops] = useState<RouteStopItem[]>([]);
@@ -2011,6 +2014,19 @@ function RouteStopsPanel({
     return orderedStops.some((item, index) => item.order !== index + 1);
   }, [orderedStops]);
 
+  const originalSchedules = useMemo(() => {
+    return filteredRouteStops.reduce<Record<string, string>>((acc, item) => {
+      acc[item.id] = item.schedule;
+      return acc;
+    }, {});
+  }, [filteredRouteStops]);
+
+  const hasScheduleChanges = useMemo(() => {
+    return orderedStops.some(
+      (item) => originalSchedules[item.id] !== item.schedule,
+    );
+  }, [orderedStops, originalSchedules]);
+
   const assignedStopIds = useMemo(() => {
     return new Set(selectedRouteStops.map((item) => item.stopId));
   }, [selectedRouteStops]);
@@ -2025,6 +2041,28 @@ function RouteStopsPanel({
     );
     return maxOrder + 1;
   }, [selectedRouteStops]);
+
+  const parseMinutes = (value: string) => {
+    const trimmed = value.trim();
+    const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(trimmed);
+    if (!match) {
+      return null;
+    }
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    return hours * 60 + minutes;
+  };
+
+  const formatMinutes = (total: number) => {
+    const safeTotal = ((total % 1440) + 1440) % 1440;
+    const hours = Math.floor(safeTotal / 60)
+      .toString()
+      .padStart(2, "0");
+    const minutes = Math.floor(safeTotal % 60)
+      .toString()
+      .padStart(2, "0");
+    return `${hours}:${minutes}`;
+  };
 
   const filteredStops = useMemo(() => {
     if (!stopSearchQuery.trim()) {
@@ -2077,6 +2115,32 @@ function RouteStopsPanel({
                 placeholder="Search stops..."
                 className="w-full rounded-lg border border-[#c7cfe1] bg-white py-2 pl-9 pr-3 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
               />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737b8c]">
+                  Start Time
+                </span>
+                <input
+                  type="text"
+                  value={scheduleBase}
+                  onChange={(event) => setScheduleBase(event.target.value)}
+                  placeholder="07:00"
+                  className="w-full rounded-lg border border-[#c7cfe1] bg-white px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737b8c]">
+                  Interval (min)
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  value={scheduleStepMinutes}
+                  onChange={(event) => setScheduleStepMinutes(event.target.value)}
+                  className="w-full rounded-lg border border-[#c7cfe1] bg-white px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+                />
+              </label>
             </div>
             <div className="h-44 space-y-2 overflow-auto rounded-lg border border-[#c7cfe1] bg-[#eef2ff] p-2">
               {filteredStops.map((stop) => {
@@ -2150,7 +2214,11 @@ function RouteStopsPanel({
               (id) => !assignedStopIds.has(id),
             );
 
+            const baseMinutes = parseMinutes(scheduleBase) ?? 0;
+            const interval = Math.max(1, Number(scheduleStepMinutes) || 5);
+
             for (const [index, stopId] of pendingStopIds.entries()) {
+              const schedule = formatMinutes(baseMinutes + index * interval);
               const response = await fetch("/api/admin/route-stops", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -2158,6 +2226,7 @@ function RouteStopsPanel({
                   routeId: selectedRouteId,
                   stopId,
                   order: nextOrder + index,
+                  schedule,
                 }),
               });
               if (!response.ok) {
@@ -2185,12 +2254,18 @@ function RouteStopsPanel({
           </h3>
           <button
             type="button"
-            disabled={!selectedRouteId || orderedStops.length === 0 || !hasReorderChanges}
+            disabled={
+              !selectedRouteId ||
+              orderedStops.length === 0 ||
+              (!hasReorderChanges && !hasScheduleChanges)
+            }
             onClick={async () => {
               setErrorMessage(null);
               for (const [index, item] of orderedStops.entries()) {
                 const newOrder = index + 1;
-                if (originalOrder[item.id] === newOrder) {
+                const scheduleChanged =
+                  originalSchedules[item.id] !== item.schedule;
+                if (originalOrder[item.id] === newOrder && !scheduleChanged) {
                   continue;
                 }
                 const response = await fetch(
@@ -2198,7 +2273,10 @@ function RouteStopsPanel({
                   {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ order: newOrder }),
+                    body: JSON.stringify({
+                      order: newOrder,
+                      schedule: item.schedule,
+                    }),
                   },
                 );
                 if (!response.ok) {
@@ -2222,6 +2300,7 @@ function RouteStopsPanel({
                 <th className="px-4 py-3">Route</th>
                 <th className="px-4 py-3">Stop</th>
                 <th className="px-4 py-3">Order</th>
+                <th className="px-4 py-3">Schedule</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -2229,7 +2308,7 @@ function RouteStopsPanel({
               {!selectedRouteId ? (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={5}
                     className="px-4 py-8 text-center text-sm font-medium text-[#737b8c]"
                   >
                     Select a route to manage its stops.
@@ -2269,6 +2348,22 @@ function RouteStopsPanel({
                       <span className="inline-flex cursor-grab items-center gap-2 rounded-full bg-[#eef2ff] px-3 py-1 text-xs font-semibold text-[#0a4cad]">
                         #{index + 1}
                       </span>
+                    </td>
+                    <td className="px-4 py-4 text-[#5b6272]">
+                      <input
+                        type="text"
+                        value={item.schedule}
+                        onChange={(event) =>
+                          setOrderedStops((prev) =>
+                            prev.map((entry) =>
+                              entry.id === item.id
+                                ? { ...entry, schedule: event.target.value }
+                                : entry,
+                            ),
+                          )
+                        }
+                        className="w-20 rounded-md border border-[#d4daea] bg-white px-2 py-1 text-xs text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+                      />
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex justify-end gap-1">

@@ -12,6 +12,7 @@ export async function getRoutesOverview() {
       stops: {
         select: {
           order: true,
+          schedule: true,
           stop: {
             select: {
               name: true,
@@ -37,6 +38,9 @@ export async function getRoutesOverview() {
     coverage: route.coverage,
     status: route.status,
     activeBuses: route.buses.length,
-    stops: route.stops.map((item) => item.stop.name),
+    stops: route.stops.map((item) => ({
+      name: item.stop.name,
+      schedule: item.schedule,
+    })),
   }));
 }

@@ -23,7 +23,7 @@ type RouteItem = {
   coverage: string;
   status: RouteStatus;
   activeBuses: number;
-  stops: string[];
+  stops: { name: string; schedule: string }[];
 };
 
 const statusStyles: Record<RouteStatus, string> = {
@@ -80,7 +80,7 @@ export default function RoutesClientPage({
     coverage: string;
     status: string;
     activeBuses: number;
-    stops: string[];
+    stops: { name: string; schedule: string }[];
   }[];
 }) {
   const routes: RouteItem[] = routesData.map((route) => ({
@@ -148,7 +148,7 @@ export default function RoutesClientPage({
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#586579]">
-            Network Management
+            Routes Dashboard
           </p>
           <h1 className="text-3xl font-extrabold tracking-tight text-[#141b2c]">
             Active Route Oversight
@@ -179,13 +179,13 @@ export default function RoutesClientPage({
             ))}
           </select>
 
-          <button
+          {/* <button
             type="button"
             className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#0040a1] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
           >
             <Plus className="h-4 w-4" />
             New Route
-          </button>
+          </button> */}
         </div>
       </header>
 
@@ -406,7 +406,9 @@ export default function RoutesClientPage({
                 <h3 className="text-2xl font-extrabold text-[#1f2633]">
                   {viewingRoute.name}
                 </h3>
-                <p className="text-sm text-[#586579]">{viewingRoute.coverage}</p>
+                <p className="text-sm text-[#586579]">
+                  {viewingRoute.coverage}
+                </p>
               </div>
               <button
                 type="button"
@@ -428,14 +430,17 @@ export default function RoutesClientPage({
               ) : (
                 <div className="relative px-2 py-3">
                   <span className="pointer-events-none absolute left-4 right-4 top-[3.2rem] h-1 rounded-full bg-[#c8d8ff]" />
-                  <div className="grid grid-cols-[repeat(auto-fit,minmax(90px,1fr))] gap-4">
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-4">
                     {viewingRoute.stops.map((stop, index) => (
                       <div
-                        key={`${viewingRoute.id}-${stop}-${index}`}
+                        key={`${viewingRoute.id}-${stop.name}-${index}`}
                         className="flex flex-col items-center text-center"
                       >
+                        <span className="mb-1 text-[11px] font-bold uppercase tracking-[0.2em] text-[#6b7385]">
+                          {stop.schedule}
+                        </span>
                         <span className="mb-2 line-clamp-2 min-h-10 text-xs font-semibold text-[#1f2633]">
-                          {stop}
+                          {stop.name}
                         </span>
                         <span className="z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#0040a1] text-xs font-bold text-white shadow-sm">
                           {index + 1}

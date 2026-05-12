@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 export type BusCardSummary = {
   id: string;
   route: string;
-  eta: string;
+  nextArrival: string;
   lastStop: string;
   passengers: number;
   capacity: number;
@@ -20,8 +20,13 @@ export async function getBusCards() {
       include: {
         route: {
           select: {
-            code: true,
             name: true,
+          },
+        },
+        state: {
+          select: {
+            lastStop: { select: { name: true } },
+            destination: { select: { name: true } },
           },
         },
       },
@@ -120,6 +125,7 @@ export async function getBusCards() {
   });
 
   const etaByBusId = new Map<string, number>();
+  const arrivalTimeByBusId = new Map<string, string>();
   const lastStopNameByBusId = new Map<string, string>();
 
   eventsByBus.forEach((events, busId) => {
@@ -141,7 +147,13 @@ export async function getBusCards() {
     const segmentKey = `${latest.routeId}:${latest.stopId}->${nextStopId}`;
     const etaMinutes = medianMinutesBySegment.get(segmentKey);
     if (typeof etaMinutes === "number") {
-      etaByBusId.set(busId, Math.max(1, Math.round(etaMinutes)));
+      const rounded = Math.max(1, Math.round(etaMinutes));
+      etaByBusId.set(busId, rounded);
+      const arrival = new Date(latest.createdAt.getTime() + rounded * 60000);
+      arrivalTimeByBusId.set(
+        busId,
+        arrival.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      );
     }
     const stopName = stopNameById.get(latest.stopId);
     if (stopName) {
@@ -151,12 +163,19 @@ export async function getBusCards() {
 
   return buses.map<BusCardSummary>((bus) => {
     const computedEta = etaByBusId.get(bus.id);
-    const etaText =
-      typeof computedEta === "number"
-        ? `${computedEta} mins`
+    const nextArrivalText =
+      arrivalTimeByBusId.get(bus.id) ??
+      (typeof computedEta === "number"
+        ? new Date(now.getTime() + computedEta * 60000).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
         : typeof bus.etaMinutes === "number"
-          ? `${bus.etaMinutes} mins`
-          : "Delayed";
+          ? new Date(now.getTime() + bus.etaMinutes * 60000).toLocaleTimeString(
+              [],
+              { hour: "2-digit", minute: "2-digit" },
+            )
+          : "Delayed");
     const statusLabel = bus.serviceStatus.toLowerCase() as
       | "normal"
       | "warning"
@@ -164,14 +183,16 @@ export async function getBusCards() {
 
     return {
       id: bus.id,
-      route: bus.route
-        ? `Route ${bus.route.code}`
-        : "Unassigned",
-      eta: etaText,
-      lastStop: lastStopNameByBusId.get(bus.id) ?? bus.lastStop ?? "Unknown",
+      route: bus.route?.name ?? "Unassigned",
+      nextArrival: nextArrivalText,
+      lastStop:
+        bus.state?.lastStop?.name ??
+        lastStopNameByBusId.get(bus.id) ??
+        bus.lastStop ??
+        "Unknown",
       passengers: bus.passengers,
       capacity: bus.capacity,
-      heading: bus.heading,
+      heading: bus.state?.destination?.name ?? bus.heading,
       status: statusLabel,
     };
   });

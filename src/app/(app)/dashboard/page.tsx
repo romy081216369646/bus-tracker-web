@@ -20,7 +20,7 @@ export default async function DashboardPage() {
           </h1>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        {/* <div className="flex flex-wrap gap-3">
           <div className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 shadow-sm ring-1 ring-[#dbe2f9]">
             <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
             <span className="text-sm font-semibold text-[#141b2c]">
@@ -33,7 +33,7 @@ export default async function DashboardPage() {
               {delayedCount} Delayed
             </span>
           </div>
-        </div>
+        </div> */}
       </header>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -46,7 +46,7 @@ export default async function DashboardPage() {
             <BusCard
               key={bus.id}
               route={bus.route}
-              eta={bus.eta}
+              nextArrival={bus.nextArrival}
               lastStop={bus.lastStop}
               passengers={bus.passengers}
               capacity={bus.capacity}

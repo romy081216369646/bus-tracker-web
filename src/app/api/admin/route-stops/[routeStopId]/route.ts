@@ -30,9 +30,10 @@ export async function PATCH(
 
   const body = (await request.json()) as {
     order?: number;
+    schedule?: string;
   };
 
-  if (body.order === undefined) {
+  if (body.order === undefined && body.schedule === undefined) {
     await logAuditEvent({
       action: "ROUTE_STOP_UPDATE",
       entity: "route-stop",
@@ -42,15 +43,21 @@ export async function PATCH(
       actorRole: session.user.role,
       ipAddress,
       userAgent,
-      details: { reason: "MISSING_ORDER" },
+      details: { reason: "MISSING_UPDATE_FIELDS" },
     });
-    return NextResponse.json({ error: "Missing order" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing order or schedule" },
+      { status: 400 },
+    );
   }
 
   try {
     const routeStop = await prisma.routeStop.update({
       where: { id: routeStopId },
-      data: { order: body.order },
+      data: {
+        order: body.order,
+        schedule: body.schedule,
+      },
     });
 
     await logAuditEvent({
@@ -62,7 +69,7 @@ export async function PATCH(
       actorRole: session.user.role,
       ipAddress,
       userAgent,
-      details: { order: body.order },
+      details: { order: body.order, schedule: body.schedule },
     });
 
     return NextResponse.json(routeStop);

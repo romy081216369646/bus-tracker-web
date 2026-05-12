@@ -45,14 +45,28 @@ export async function POST(request: Request) {
   }
 
   try {
-    const bus = await prisma.bus.create({
-      data: {
-        fleetCode: body.fleetCode,
-        model: body.model,
-        capacity: body.capacity,
-        status: body.status ?? "ACTIVE",
-        routeId: body.routeId ?? null,
-      },
+    const { fleetCode, model, capacity, status, routeId } = body;
+    const bus = await prisma.$transaction(async (tx) => {
+      const createdBus = await tx.bus.create({
+        data: {
+          fleetCode: fleetCode!,
+          model: model!,
+          capacity: capacity!,
+          status: status ?? "ACTIVE",
+          routeId: routeId ?? null,
+        },
+      });
+
+      await tx.busState.create({
+        data: {
+          busId: createdBus.id,
+          passengers: 0,
+          lastStopId: null,
+          destinationStopId: null,
+        },
+      });
+
+      return createdBus;
     });
 
     await logAuditEvent({

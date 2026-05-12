@@ -187,6 +187,7 @@ model RouteStop {
   routeId   String
   stopId    String
   order     Int
+  schedule  String   @default("00:00")
   createdAt DateTime @default(now())
 
   route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)

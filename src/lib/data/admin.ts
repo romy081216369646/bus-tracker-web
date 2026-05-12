@@ -34,6 +34,7 @@ export type AdminRouteStopItem = {
   stopId: string;
   order: number;
   stopName: string;
+  schedule: string;
 };
 
 export type AdminLogItem = {
@@ -129,6 +130,7 @@ export async function getAdminRouteStops(): Promise<AdminRouteStopItem[]> {
       routeId: true,
       stopId: true,
       order: true,
+      schedule: true,
       stop: {
         select: { name: true },
       },
@@ -142,6 +144,7 @@ export async function getAdminRouteStops(): Promise<AdminRouteStopItem[]> {
     stopId: routeStop.stopId,
     order: routeStop.order,
     stopName: routeStop.stop.name,
+    schedule: routeStop.schedule,
   }));
 }
 
