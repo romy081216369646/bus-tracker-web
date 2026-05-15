@@ -7,8 +7,11 @@ import {
   Eye,
   MoreVertical,
   Search,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useMqttContext } from "@/lib/iot";
 
 type RouteStatus = "on-schedule" | "minor-delays" | "delayed";
 type RouteFilter = RouteStatus | "all";
@@ -91,6 +94,7 @@ export default function RoutesClientPage({
   const [sortKey, setSortKey] = useState<RouteSortKey>("id");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [viewingRoute, setViewingRoute] = useState<RouteItem | null>(null);
+  const { isConnected, busPassengers, busRFIDs, lastUpdate } = useMqttContext();
 
   const handleSort = (key: RouteSortKey) => {
     if (sortKey === key) {
@@ -146,6 +150,18 @@ export default function RoutesClientPage({
           <h1 className="text-3xl font-extrabold tracking-tight text-[#141b2c]">
             Active Route Oversight
           </h1>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${isConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+            {isConnected ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+            {isConnected ? 'MQTT Online' : 'MQTT Offline'}
+          </div>
+          {lastUpdate && (
+            <span className="text-xs text-[#586579]">
+              {busPassengers.size} IR sensors | {busRFIDs.size} RFID active
+            </span>
+          )}
         </div>
 
         <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">

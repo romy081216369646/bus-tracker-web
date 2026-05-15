@@ -15,9 +15,13 @@ import {
   ScrollText,
   TrainFront,
   Trash2,
+  Wifi,
+  WifiOff,
+  Signal,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMqttContext } from "@/lib/iot";
 
 type AdminTab =
   | "buses"
@@ -25,7 +29,8 @@ type AdminTab =
   | "stops"
   | "route-stops"
   | "logs"
-  | "arrival-logs";
+  | "arrival-logs"
+  | "iot-devices";
 
 type BusStatus = "ACTIVE" | "REPAIR" | "STANDBY";
 type RouteStatus = "ON_SCHEDULE" | "MINOR_DELAYS" | "DELAYED";
@@ -2480,6 +2485,7 @@ export default function AdminClientPage({
   arrivalLogs: ArrivalLogItem[];
 }) {
   const [tab, setTab] = useState<AdminTab>("buses");
+  const { isConnected, busPassengers, busHeartbeats, busRFIDs, recentArrivals, lastUpdate } = useMqttContext();
 
   return (
     <section className="space-y-6 md:space-y-8">
@@ -2490,6 +2496,29 @@ export default function AdminClientPage({
         <h1 className="text-4xl font-extrabold tracking-tight text-[#1b2435] max-md:text-3xl">
           Fleet & Route Management
         </h1>
+        <div className="mt-4 flex flex-wrap items-center gap-4">
+          <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${isConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+            {isConnected ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+            MQTT: {isConnected ? 'Connected' : 'Disconnected'}
+          </div>
+          <div className="flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1.5 text-xs font-medium text-blue-700">
+            <Signal className="h-3.5 w-3.5" />
+            {busPassengers.size} IR Sensors
+          </div>
+          <div className="flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-700">
+            <Signal className="h-3.5 w-3.5" />
+            {busRFIDs.size} RFID Active
+          </div>
+          <div className="flex items-center gap-2 rounded-full bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700">
+            <Signal className="h-3.5 w-3.5" />
+            {busHeartbeats.size} Devices Online
+          </div>
+          {lastUpdate && (
+            <span className="text-xs text-[#586579]">
+              Last update: {lastUpdate.toLocaleTimeString()}
+            </span>
+          )}
+        </div>
       </header>
 
       <div className="border-b border-[#cdd4e4]">
@@ -2562,6 +2591,19 @@ export default function AdminClientPage({
           </button>
           <button
             role="tab"
+            aria-selected={tab === "iot-devices"}
+            onClick={() => setTab("iot-devices")}
+            className={`inline-flex cursor-pointer items-center gap-2 border-b-2 px-1 py-2.5 text-sm font-bold transition-colors ${
+              tab === "iot-devices"
+                ? "border-[#0a4cad] text-[#0a4cad]"
+                : "border-transparent text-[#586579] hover:text-[#0a4cad]"
+            }`}
+          >
+            <Wifi className="h-4 w-4" />
+            IoT Devices
+          </button>
+          <button
+            role="tab"
             aria-selected={tab === "logs"}
             onClick={() => setTab("logs")}
             className={`inline-flex cursor-pointer items-center gap-2 border-b-2 px-1 py-2.5 text-sm font-bold transition-colors ${
@@ -2590,6 +2632,112 @@ export default function AdminClientPage({
         />
       ) : tab === "arrival-logs" ? (
         <ArrivalLogsPanel logs={arrivalLogs} />
+      ) : tab === "iot-devices" ? (
+        <div className="rounded-xl border border-[#dbe2f9] bg-white p-6">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-[#141b2c]">Connected IoT Devices</h3>
+              <p className="text-sm text-[#586579]">RFID Scanner & IR Sensor status from MQTT broker</p>
+            </div>
+            <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${isConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {isConnected ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+              {isConnected ? 'Connected' : 'Disconnected'}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div className="rounded-lg bg-[#f8f9ff] p-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#586579]">RFID Scans</p>
+              <p className="text-3xl font-bold text-amber-600">{busRFIDs.size}</p>
+              <p className="text-xs text-[#586579]">Bus di halte</p>
+            </div>
+            <div className="rounded-lg bg-[#f8f9ff] p-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#586579]">Passenger Data</p>
+              <p className="text-3xl font-bold text-[#0040a1]">{busPassengers.size}</p>
+              <p className="text-xs text-[#586579]">Active sensors</p>
+            </div>
+            <div className="rounded-lg bg-[#f8f9ff] p-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#586579]">Heartbeats</p>
+              <p className="text-3xl font-bold text-green-600">{busHeartbeats.size}</p>
+              <p className="text-xs text-[#586579]">Devices online</p>
+            </div>
+            <div className="rounded-lg bg-[#f8f9ff] p-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#586579]">Recent Arrivals</p>
+              <p className="text-3xl font-bold text-purple-600">{recentArrivals.length}</p>
+              <p className="text-xs text-[#586579]">Terakhir 20</p>
+            </div>
+          </div>
+
+          {recentArrivals.length > 0 && (
+            <div className="mt-6">
+              <h4 className="mb-3 text-sm font-bold text-[#141b2c]">Riwayat RFID Scan (Bus masuk halte)</h4>
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse text-left">
+                  <thead>
+                    <tr className="bg-[#f1f4ff] text-[11px] font-bold uppercase tracking-[0.15em] text-[#586579]">
+                      <th className="px-4 py-3">Bus ID</th>
+                      <th className="px-4 py-3">RFID Tag</th>
+                      <th className="px-4 py-3">Stop ID</th>
+                      <th className="px-4 py-3">Waktu</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#e0e5f1]">
+                    {recentArrivals.slice(0, 10).map((arrival, idx) => (
+                      <tr key={`${arrival.busId}-${arrival.timestamp}-${idx}`} className="hover:bg-[#f9fbff]">
+                        <td className="px-4 py-3 font-bold text-[#0040a1]">{arrival.busId}</td>
+                        <td className="px-4 py-3 text-[#5b6272] font-mono">{arrival.rfid}</td>
+                        <td className="px-4 py-3 text-[#5b6272]">{arrival.stopId}</td>
+                        <td className="px-4 py-3 text-[#5b6272]">{new Date(arrival.timestamp).toLocaleTimeString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {busHeartbeats.size > 0 && (
+            <div className="mt-6">
+              <h4 className="mb-3 text-sm font-bold text-[#141b2c]">Device Heartbeats</h4>
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse text-left">
+                  <thead>
+                    <tr className="bg-[#f1f4ff] text-[11px] font-bold uppercase tracking-[0.15em] text-[#586579]">
+                      <th className="px-4 py-3">Bus ID</th>
+                      <th className="px-4 py-3">Device ID</th>
+                      <th className="px-4 py-3">Battery</th>
+                      <th className="px-4 py-3">Signal</th>
+                      <th className="px-4 py-3">Last Heartbeat</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#e0e5f1]">
+                    {Array.from(busHeartbeats.entries()).map(([busId, heartbeat]) => (
+                      <tr key={busId} className="hover:bg-[#f9fbff]">
+                        <td className="px-4 py-3 font-bold text-[#0040a1]">{busId}</td>
+                        <td className="px-4 py-3 text-[#5b6272]">{heartbeat.deviceId}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${heartbeat.battery && heartbeat.battery > 20 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {heartbeat.battery ?? 'N/A'}%
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-[#5b6272]">{heartbeat.signal ?? 'N/A'} dBm</td>
+                        <td className="px-4 py-3 text-[#5b6272]">{new Date(heartbeat.timestamp).toLocaleTimeString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {busRFIDs.size === 0 && busPassengers.size === 0 && busHeartbeats.size === 0 && (
+            <div className="mt-6 rounded-lg bg-[#f8f9ff] p-8 text-center">
+              <WifiOff className="mx-auto mb-3 h-8 w-8 text-[#586579]" />
+              <p className="font-medium text-[#586579]">No IoT devices connected</p>
+              <p className="text-sm text-[#737785]">Waiting for devices to send data via MQTT...</p>
+            </div>
+          )}
+        </div>
       ) : (
         <LogsPanel logs={logs} />
       )}
