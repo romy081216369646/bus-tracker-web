@@ -2,7 +2,7 @@
 
 import BusCard from "@/components/BusCard";
 import { useMqttContext } from "@/lib/iot";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface FleetCard {
   id: string;
@@ -20,6 +20,11 @@ interface FleetCard {
 interface DashboardClientProps {
   fleetCards: FleetCard[];
 }
+
+type StopLookupItem = {
+  id: string;
+  name: string;
+};
 
 /**
  * Finds a matching entry in a Map by trying exact match first,
@@ -44,6 +49,10 @@ export default function DashboardClient({ fleetCards }: DashboardClientProps) {
     useMqttContext();
   const [liveFleetCards, setLiveFleetCards] = useState<FleetCard[]>(fleetCards);
   const [pollError, setPollError] = useState<string | null>(null);
+  const [passengerOffsets, setPassengerOffsets] = useState<Map<string, number>>(
+    new Map(),
+  );
+  const [stopLookup, setStopLookup] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     setLiveFleetCards(fleetCards);
@@ -85,6 +94,46 @@ export default function DashboardClient({ fleetCards }: DashboardClientProps) {
       if (intervalId) clearInterval(intervalId);
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchStops = async () => {
+      try {
+        const response = await fetch("/api/stops/lookup", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json()) as StopLookupItem[];
+        if (!mounted) return;
+        const nextLookup = new Map<string, string>();
+        data.forEach((stop) => nextLookup.set(stop.id, stop.name));
+        setStopLookup(nextLookup);
+      } catch (_) {
+        // ignore stop lookup failures
+      }
+    };
+
+    fetchStops();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const nextOffsets = new Map<string, number>();
+    liveFleetCards.forEach((bus) => {
+      const passenger = findInMap(busPassengers, bus.rfidTag);
+      nextOffsets.set(bus.rfidTag, passenger?.totalPassengers ?? 0);
+    });
+    setPassengerOffsets(nextOffsets);
+  }, [liveFleetCards, busPassengers]);
 
   return (
     <section className="space-y-6">
@@ -130,8 +179,15 @@ export default function DashboardClient({ fleetCards }: DashboardClientProps) {
             const heartbeat = findInMap(busHeartbeats, bus.busCode);
 
             // Merge realtime data into existing card props (no new cards created)
-            const realtimePassengers = passenger?.totalPassengers ?? bus.passengers;
-            const realtimeLastStop = rfid?.stopId ? `Stop ${rfid.stopId}` : bus.lastStop;
+            const passengerOffset = passengerOffsets.get(bus.rfidTag) ?? 0;
+            const passengerDelta = Math.max(
+              0,
+              (passenger?.totalPassengers ?? 0) - passengerOffset,
+            );
+            const realtimePassengers = bus.passengers + passengerDelta;
+            const realtimeLastStop = rfid?.stopId
+              ? stopLookup.get(rfid.stopId) ?? bus.lastStop
+              : bus.lastStop;
 
             return (
               <div key={bus.id} className="relative">
@@ -148,7 +204,7 @@ export default function DashboardClient({ fleetCards }: DashboardClientProps) {
                 {rfid && (
                   <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[10px] font-medium text-amber-700">
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                    At {rfid.stopId}
+                    At {stopLookup.get(rfid.stopId) ?? rfid.stopId}
                   </div>
                 )}
                 {heartbeat && (
