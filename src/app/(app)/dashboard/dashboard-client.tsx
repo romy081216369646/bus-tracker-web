@@ -107,13 +107,13 @@ export default function DashboardClient({ fleetCards }: DashboardClientProps) {
               <div key={busId} className="rounded-lg bg-[#f8f9ff] p-3 text-xs">
                 <div className="font-semibold text-[#0040a1]">{busId}</div>
                 <div className="text-[#586579]">
-                  In: {data.passengerIn} | Out: {data.passengerOut}
+                  Last event: {data.lastEvent === "masuk" ? "Passenger In" : "Passenger Out"}
                 </div>
                 <div className="text-[#586579]">
                   Total: {data.totalPassengers} passengers
                 </div>
                 <div className="text-[#586579]">
-                  {new Date(data.timestamp).toLocaleTimeString()}
+                  Updated: {data.lastTimestamp}
                 </div>
               </div>
             ))}

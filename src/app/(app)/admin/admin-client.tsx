@@ -2675,19 +2675,17 @@ export default function AdminClientPage({
                 <table className="min-w-full border-collapse text-left">
                   <thead>
                     <tr className="bg-[#f1f4ff] text-[11px] font-bold uppercase tracking-[0.15em] text-[#586579]">
-                      <th className="px-4 py-3">Bus ID</th>
-                      <th className="px-4 py-3">RFID Tag</th>
-                      <th className="px-4 py-3">Stop ID</th>
+                      <th className="px-4 py-3">Halte</th>
+                      <th className="px-4 py-3">UID (RFID)</th>
                       <th className="px-4 py-3">Waktu</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#e0e5f1]">
                     {recentArrivals.slice(0, 10).map((arrival, idx) => (
-                      <tr key={`${arrival.busId}-${arrival.timestamp}-${idx}`} className="hover:bg-[#f9fbff]">
-                        <td className="px-4 py-3 font-bold text-[#0040a1]">{arrival.busId}</td>
-                        <td className="px-4 py-3 text-[#5b6272] font-mono">{arrival.rfid}</td>
-                        <td className="px-4 py-3 text-[#5b6272]">{arrival.stopId}</td>
-                        <td className="px-4 py-3 text-[#5b6272]">{new Date(arrival.timestamp).toLocaleTimeString()}</td>
+                      <tr key={`${arrival.halte}-${arrival.timestamp}-${idx}`} className="hover:bg-[#f9fbff]">
+                        <td className="px-4 py-3 font-bold text-[#0040a1]">{arrival.halte}</td>
+                        <td className="px-4 py-3 text-[#5b6272] font-mono">{arrival.uid}</td>
+                        <td className="px-4 py-3 text-[#5b6272]">{arrival.timestamp}</td>
                       </tr>
                     ))}
                   </tbody>
