@@ -1,0 +1,8 @@
+ALTER TABLE "Route"
+DROP COLUMN IF EXISTS "direction",
+DROP COLUMN IF EXISTS "coverage",
+DROP COLUMN IF EXISTS "configStatus",
+DROP COLUMN IF EXISTS "scheduleType";
+
+DROP TYPE IF EXISTS "RouteConfigStatus";
+DROP TYPE IF EXISTS "ScheduleType";

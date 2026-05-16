@@ -3,6 +3,7 @@
 import {
   ArrowUpDown,
   Bus,
+  Check,
   Download,
   ListFilter,
   Map,
@@ -11,23 +12,36 @@ import {
   Route,
   Save,
   Search,
+  ScrollText,
+  TrainFront,
   Trash2,
+  Wifi,
+  WifiOff,
+  Signal,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMqttContext } from "@/lib/iot";
 
-type AdminTab = "buses" | "routes" | "stops" | "route-stops";
+type AdminTab =
+  | "buses"
+  | "routes"
+  | "stops"
+  | "route-stops"
+  | "logs"
+  | "arrival-logs"
+  | "iot-devices";
 
 type BusStatus = "ACTIVE" | "REPAIR" | "STANDBY";
-type RouteStatus = "ACTIVE" | "DRAFT" | "INACTIVE";
-type ScheduleType = "WEEKDAYS" | "DAILY" | "PEAK";
+type RouteStatus = "ON_SCHEDULE" | "MINOR_DELAYS" | "DELAYED";
 type SortDirection = "asc" | "desc";
 type BusSortKey = "id" | "model" | "capacity" | "status";
-type ConfiguredRouteSortKey = "route" | "coverage" | "type" | "status";
+type ConfiguredRouteSortKey = "route" | "status";
 
 type BusItem = {
   id: string;
   fleetCode: string;
+  rfidTag: string;
   model: string;
   capacity: number;
   status: BusStatus;
@@ -39,16 +53,12 @@ type ConfiguredRoute = {
   code: string;
   name: string;
   routeLabel: string;
-  direction: string;
-  coverage: string;
-  type: ScheduleType;
   status: RouteStatus;
 };
 
 type StopItem = {
   id: string;
   name: string;
-  rfidTag: string;
   lat: number;
   lng: number;
 };
@@ -59,11 +69,35 @@ type RouteStopItem = {
   stopId: string;
   order: number;
   stopName: string;
+  schedule: string;
+};
+
+type LogItem = {
+  id: string;
+  createdAt: string;
+  action: string;
+  entity: string;
+  entityId: string | null;
+  status: "SUCCESS" | "FAILED";
+  actorName: string;
+  actorRole: string;
+  ipAddress: string;
+  details: string;
+};
+
+type ArrivalLogItem = {
+  id: string;
+  createdAt: string;
+  busId: string;
+  routeLabel: string;
+  stopName: string;
+  rfidTag: string;
 };
 
 type BusDraft = {
   id: string;
   fleetCode: string;
+  rfidTag: string;
   model: string;
   capacity: string;
   status: BusStatus;
@@ -74,9 +108,6 @@ type RouteDraft = {
   id: string;
   code: string;
   name: string;
-  coverage: string;
-  direction: string;
-  scheduleType: ScheduleType;
   status: RouteStatus;
 };
 
@@ -87,9 +118,9 @@ const busStatusClass: Record<BusStatus, string> = {
 };
 
 const routeStatusClass: Record<RouteStatus, string> = {
-  ACTIVE: "bg-emerald-100 text-emerald-700",
-  DRAFT: "bg-slate-200 text-slate-600",
-  INACTIVE: "bg-rose-100 text-rose-700",
+  ON_SCHEDULE: "bg-emerald-100 text-emerald-700",
+  MINOR_DELAYS: "bg-amber-100 text-amber-700",
+  DELAYED: "bg-rose-100 text-rose-700",
 };
 
 function BusesPanel({
@@ -106,6 +137,7 @@ function BusesPanel({
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [formState, setFormState] = useState({
     fleetCode: "",
+    rfidTag: "",
     model: "",
     capacity: "",
     status: "ACTIVE" as BusStatus,
@@ -130,7 +162,7 @@ function BusesPanel({
     const filtered = buses.filter((bus) => {
       const bySearch =
         searchQuery.trim() === "" ||
-        `${bus.fleetCode} ${bus.model}`
+        `${bus.fleetCode} ${bus.rfidTag} ${bus.model}`
           .toLowerCase()
           .includes(searchQuery.toLowerCase());
       const byStatus = statusFilter === "ALL" || bus.status === statusFilter;
@@ -183,6 +215,24 @@ function BusesPanel({
                 setFormState((prev) => ({
                   ...prev,
                   fleetCode: event.target.value,
+                }))
+              }
+              className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2.5 text-sm text-[#1f2633] outline-none ring-[#0a4cad] transition focus:ring-2"
+            />
+          </label>
+
+          <label className="space-y-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
+              Bus RFID Tag
+            </span>
+            <input
+              type="text"
+              placeholder="e.g., BUS-RFID-001"
+              value={formState.rfidTag}
+              onChange={(event) =>
+                setFormState((prev) => ({
+                  ...prev,
+                  rfidTag: event.target.value,
                 }))
               }
               className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2.5 text-sm text-[#1f2633] outline-none ring-[#0a4cad] transition focus:ring-2"
@@ -280,7 +330,12 @@ function BusesPanel({
           disabled={isSubmitting}
           onClick={async () => {
             setErrorMessage(null);
-            if (!formState.fleetCode || !formState.model || !formState.capacity) {
+            if (
+              !formState.fleetCode ||
+              !formState.rfidTag ||
+              !formState.model ||
+              !formState.capacity
+            ) {
               setErrorMessage("Please fill all bus fields.");
               return;
             }
@@ -291,6 +346,7 @@ function BusesPanel({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 fleetCode: formState.fleetCode,
+                rfidTag: formState.rfidTag,
                 model: formState.model,
                 capacity: Number(formState.capacity),
                 status: formState.status,
@@ -307,6 +363,7 @@ function BusesPanel({
 
             setFormState({
               fleetCode: "",
+              rfidTag: "",
               model: "",
               capacity: "",
               status: "ACTIVE",
@@ -444,6 +501,7 @@ function BusesPanel({
                           setEditBus({
                             id: bus.id,
                             fleetCode: bus.fleetCode,
+                            rfidTag: bus.rfidTag,
                             model: bus.model,
                             capacity: String(bus.capacity),
                             status: bus.status,
@@ -505,6 +563,7 @@ function BusesPanel({
                     setEditBus({
                       id: bus.id,
                       fleetCode: bus.fleetCode,
+                      rfidTag: bus.rfidTag,
                       model: bus.model,
                       capacity: String(bus.capacity),
                       status: bus.status,
@@ -567,6 +626,21 @@ function BusesPanel({
                       prev
                         ? { ...prev, fleetCode: event.target.value }
                         : prev,
+                    )
+                  }
+                  className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
+                  Bus RFID Tag
+                </span>
+                <input
+                  type="text"
+                  value={editBus.rfidTag}
+                  onChange={(event) =>
+                    setEditBus((prev) =>
+                      prev ? { ...prev, rfidTag: event.target.value } : prev,
                     )
                   }
                   className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
@@ -678,6 +752,7 @@ function BusesPanel({
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
                         fleetCode: editBus.fleetCode,
+                        rfidTag: editBus.rfidTag,
                         model: editBus.model,
                         capacity,
                         status: editBus.status,
@@ -762,10 +837,7 @@ function RoutesPanel({
   const [formState, setFormState] = useState({
     code: "",
     name: "",
-    coverage: "",
-    direction: "",
-    scheduleType: "WEEKDAYS" as ScheduleType,
-    configStatus: "ACTIVE" as RouteStatus,
+    status: "ON_SCHEDULE" as RouteStatus,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -786,7 +858,7 @@ function RoutesPanel({
     const filtered = configuredRoutes.filter((item) => {
       const bySearch =
         searchQuery.trim() === "" ||
-        `${item.routeLabel} ${item.coverage} ${item.type}`
+        `${item.routeLabel}`
           .toLowerCase()
           .includes(searchQuery.toLowerCase());
       const byStatus = statusFilter === "ALL" || item.status === statusFilter;
@@ -802,10 +874,6 @@ function RoutesPanel({
           numeric: true,
           sensitivity: "base",
         });
-      } else if (sortKey === "coverage") {
-        comparison = a.coverage.localeCompare(b.coverage);
-      } else if (sortKey === "type") {
-        comparison = a.type.localeCompare(b.type);
       } else {
         comparison = a.status.localeCompare(b.status);
       }
@@ -863,94 +931,25 @@ function RoutesPanel({
             />
           </label>
 
-          <label className="space-y-1.5">
+          <label className="space-y-1.5 md:col-span-2">
             <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
-              Coverage
+              Live Status
             </span>
-            <input
-              type="text"
-              placeholder="e.g., Oak St -> Market"
-              value={formState.coverage}
+            <select
+              value={formState.status}
               onChange={(event) =>
                 setFormState((prev) => ({
                   ...prev,
-                  coverage: event.target.value,
+                  status: event.target.value as RouteStatus,
                 }))
               }
-              className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2.5 text-sm text-[#1f2633] outline-none ring-[#0a4cad] transition focus:ring-2"
-            />
+              className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2.5 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+            >
+              <option value="ON_SCHEDULE">On Schedule</option>
+              <option value="MINOR_DELAYS">Minor Delays</option>
+              <option value="DELAYED">Delayed</option>
+            </select>
           </label>
-
-          <label className="space-y-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
-              Direction
-            </span>
-            <input
-              type="text"
-              placeholder="e.g., Northbound / Southbound"
-              value={formState.direction}
-              onChange={(event) =>
-                setFormState((prev) => ({
-                  ...prev,
-                  direction: event.target.value,
-                }))
-              }
-              className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2.5 text-sm text-[#1f2633] outline-none ring-[#0a4cad] transition focus:ring-2"
-            />
-          </label>
-
-          <fieldset className="space-y-2 md:col-span-2">
-            <legend className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
-              Schedule Type
-            </legend>
-            <div className="flex flex-wrap gap-4 text-sm text-[#3d4558]">
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="schedule"
-                  className="accent-[#0a4cad]"
-                  checked={formState.scheduleType === "DAILY"}
-                  onChange={() =>
-                    setFormState((prev) => ({
-                      ...prev,
-                      scheduleType: "DAILY",
-                    }))
-                  }
-                />{" "}
-                Daily
-              </label>
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="schedule"
-                  className="accent-[#0a4cad]"
-                  checked={formState.scheduleType === "WEEKDAYS"}
-                  onChange={() =>
-                    setFormState((prev) => ({
-                      ...prev,
-                      scheduleType: "WEEKDAYS",
-                    }))
-                  }
-                />
-                Weekdays
-              </label>
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="schedule"
-                  className="accent-[#0a4cad]"
-                  checked={formState.scheduleType === "PEAK"}
-                  onChange={() =>
-                    setFormState((prev) => ({
-                      ...prev,
-                      scheduleType: "PEAK",
-                    }))
-                  }
-                />{" "}
-                Peak
-              </label>
-            </div>
-          </fieldset>
         </div>
 
         {errorMessage ? (
@@ -966,9 +965,7 @@ function RoutesPanel({
             setErrorMessage(null);
             if (
               !formState.code ||
-              !formState.name ||
-              !formState.coverage ||
-              !formState.direction
+              !formState.name
             ) {
               setErrorMessage("Please fill all route fields.");
               return;
@@ -981,10 +978,7 @@ function RoutesPanel({
               body: JSON.stringify({
                 code: formState.code,
                 name: formState.name,
-                coverage: formState.coverage,
-                direction: formState.direction,
-                scheduleType: formState.scheduleType,
-                configStatus: formState.configStatus,
+                status: formState.status,
               }),
             });
 
@@ -998,10 +992,7 @@ function RoutesPanel({
             setFormState({
               code: "",
               name: "",
-              coverage: "",
-              direction: "",
-              scheduleType: "WEEKDAYS",
-              configStatus: "ACTIVE",
+              status: "ON_SCHEDULE",
             });
             setIsSubmitting(false);
             router.refresh();
@@ -1039,9 +1030,9 @@ function RoutesPanel({
               className="cursor-pointer rounded-md border border-[#d4daea] bg-[#eef2ff] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#485062] outline-none ring-[#0a4cad] focus:ring-2"
             >
               <option value="ALL">All</option>
-              <option value="ACTIVE">Active</option>
-              <option value="DRAFT">Draft</option>
-              <option value="INACTIVE">Inactive</option>
+              <option value="ON_SCHEDULE">On Schedule</option>
+              <option value="MINOR_DELAYS">Minor Delays</option>
+              <option value="DELAYED">Delayed</option>
             </select>
 
             <button className="inline-flex cursor-pointer items-center gap-1 text-xs font-bold text-[#0a4cad] transition-opacity hover:opacity-80">
@@ -1071,32 +1062,6 @@ function RoutesPanel({
                 <th className="px-4 py-3">
                   <button
                     type="button"
-                    onClick={() => handleSort("coverage")}
-                    className={`inline-flex cursor-pointer items-center gap-1 transition-colors ${
-                      sortKey === "coverage"
-                        ? "text-[#0a4cad]"
-                        : "hover:text-[#0a4cad]"
-                    }`}
-                  >
-                    Coverage <ArrowUpDown className="h-3.5 w-3.5" />
-                  </button>
-                </th>
-                <th className="px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => handleSort("type")}
-                    className={`inline-flex cursor-pointer items-center gap-1 transition-colors ${
-                      sortKey === "type"
-                        ? "text-[#0a4cad]"
-                        : "hover:text-[#0a4cad]"
-                    }`}
-                  >
-                    Type <ArrowUpDown className="h-3.5 w-3.5" />
-                  </button>
-                </th>
-                <th className="px-4 py-3">
-                  <button
-                    type="button"
                     onClick={() => handleSort("status")}
                     className={`inline-flex cursor-pointer items-center gap-1 transition-colors ${
                       sortKey === "status"
@@ -1116,10 +1081,6 @@ function RoutesPanel({
                   <td className="px-4 py-4 font-bold text-[#1f2633]">
                     {item.routeLabel}
                   </td>
-                  <td className="px-4 py-4 text-[#5b6272]">{item.coverage}</td>
-                  <td className="px-4 py-4 text-sm font-bold text-[#1f56b4]">
-                    {item.type}
-                  </td>
                   <td className="px-4 py-4">
                     <span
                       className={`inline-flex rounded-full px-3 py-1 text-[11px] font-bold uppercase ${routeStatusClass[item.status]}`}
@@ -1136,9 +1097,6 @@ function RoutesPanel({
                             id: item.id,
                             code: item.code,
                             name: item.name,
-                            coverage: item.coverage,
-                            direction: item.direction,
-                            scheduleType: item.type,
                             status: item.status,
                           })
                         }
@@ -1159,7 +1117,7 @@ function RoutesPanel({
               {displayedConfiguredRoutes.length === 0 && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={3}
                     className="px-4 py-8 text-center text-sm font-medium text-[#737b8c]"
                   >
                     No routes found for this search/filter.
@@ -1186,11 +1144,6 @@ function RoutesPanel({
                   {item.status}
                 </span>
               </div>
-              <p className="text-sm text-[#586579]">{item.coverage}</p>
-              <p className="mt-1 text-xs font-bold uppercase tracking-wider text-[#1f56b4]">
-                {item.type}
-              </p>
-
               <div className="mt-3 flex justify-end gap-2">
                 <button
                   className="cursor-pointer rounded-md bg-white p-2 text-[#586579] ring-1 ring-[#dbe2f0]"
@@ -1199,9 +1152,6 @@ function RoutesPanel({
                       id: item.id,
                       code: item.code,
                       name: item.name,
-                      coverage: item.coverage,
-                      direction: item.direction,
-                      scheduleType: item.type,
                       status: item.status,
                     })
                   }
@@ -1267,59 +1217,6 @@ function RoutesPanel({
               </label>
               <label className="space-y-1.5">
                 <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
-                  Coverage
-                </span>
-                <input
-                  type="text"
-                  value={editRoute.coverage}
-                  onChange={(event) =>
-                    setEditRoute((prev) =>
-                      prev ? { ...prev, coverage: event.target.value } : prev,
-                    )
-                  }
-                  className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
-                />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
-                  Direction
-                </span>
-                <input
-                  type="text"
-                  value={editRoute.direction}
-                  onChange={(event) =>
-                    setEditRoute((prev) =>
-                      prev ? { ...prev, direction: event.target.value } : prev,
-                    )
-                  }
-                  className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
-                />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
-                  Schedule Type
-                </span>
-                <select
-                  value={editRoute.scheduleType}
-                  onChange={(event) =>
-                    setEditRoute((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            scheduleType: event.target.value as ScheduleType,
-                          }
-                        : prev,
-                    )
-                  }
-                  className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
-                >
-                  <option value="WEEKDAYS">Weekdays</option>
-                  <option value="DAILY">Daily</option>
-                  <option value="PEAK">Peak</option>
-                </select>
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
                   Status
                 </span>
                 <select
@@ -1329,16 +1226,16 @@ function RoutesPanel({
                       prev
                         ? {
                             ...prev,
-                            status: event.target.value as RouteStatus,
-                          }
+                          status: event.target.value as RouteStatus,
+                        }
                         : prev,
                     )
                   }
                   className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
                 >
-                  <option value="ACTIVE">Active</option>
-                  <option value="DRAFT">Draft</option>
-                  <option value="INACTIVE">Inactive</option>
+                  <option value="ON_SCHEDULE">On Schedule</option>
+                  <option value="MINOR_DELAYS">Minor Delays</option>
+                  <option value="DELAYED">Delayed</option>
                 </select>
               </label>
             </div>
@@ -1364,10 +1261,7 @@ function RoutesPanel({
                       body: JSON.stringify({
                         code: editRoute.code,
                         name: editRoute.name,
-                        coverage: editRoute.coverage,
-                        direction: editRoute.direction,
-                        scheduleType: editRoute.scheduleType,
-                        configStatus: editRoute.status,
+                        status: editRoute.status,
                       }),
                     },
                   );
@@ -1445,14 +1339,12 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
   const [editStop, setEditStop] = useState<{
     id: string;
     name: string;
-    rfidTag: string;
     lat: string;
     lng: string;
   } | null>(null);
   const [deleteStopId, setDeleteStopId] = useState<string | null>(null);
   const [formState, setFormState] = useState({
     name: "",
-    rfidTag: "",
     lat: "",
     lng: "",
   });
@@ -1462,9 +1354,7 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
       return stops;
     }
     const term = searchQuery.toLowerCase();
-    return stops.filter((stop) =>
-      `${stop.name} ${stop.rfidTag}`.toLowerCase().includes(term),
-    );
+    return stops.filter((stop) => `${stop.name}`.toLowerCase().includes(term));
   }, [stops, searchQuery]);
 
   return (
@@ -1489,22 +1379,6 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
                 setFormState((prev) => ({
                   ...prev,
                   name: event.target.value,
-                }))
-              }
-              className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2.5 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
-            />
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
-              RFID Tag
-            </span>
-            <input
-              type="text"
-              value={formState.rfidTag}
-              onChange={(event) =>
-                setFormState((prev) => ({
-                  ...prev,
-                  rfidTag: event.target.value,
                 }))
               }
               className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2.5 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
@@ -1557,7 +1431,6 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
             setErrorMessage(null);
             if (
               !formState.name ||
-              !formState.rfidTag ||
               !formState.lat ||
               !formState.lng
             ) {
@@ -1577,7 +1450,6 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 name: formState.name,
-                rfidTag: formState.rfidTag,
                 lat,
                 lng,
               }),
@@ -1590,7 +1462,7 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
               return;
             }
 
-            setFormState({ name: "", rfidTag: "", lat: "", lng: "" });
+            setFormState({ name: "", lat: "", lng: "" });
             setIsSubmitting(false);
             router.refresh();
           }}
@@ -1623,7 +1495,6 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
             <thead>
               <tr className="bg-[#f1f4ff] text-[11px] font-bold uppercase tracking-[0.15em] text-[#586579]">
                 <th className="px-4 py-3">Stop</th>
-                <th className="px-4 py-3">RFID Tag</th>
                 <th className="px-4 py-3">Lat</th>
                 <th className="px-4 py-3">Lng</th>
                 <th className="px-4 py-3 text-right">Actions</th>
@@ -1634,9 +1505,6 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
                 <tr key={stop.id} className="hover:bg-[#f9fbff]">
                   <td className="px-4 py-4 font-bold text-[#1f2633]">
                     {stop.name}
-                  </td>
-                  <td className="px-4 py-4 text-[#5b6272]">
-                    {stop.rfidTag}
                   </td>
                   <td className="px-4 py-4 text-[#5b6272]">
                     {stop.lat.toFixed(5)}
@@ -1652,7 +1520,6 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
                           setEditStop({
                             id: stop.id,
                             name: stop.name,
-                            rfidTag: stop.rfidTag,
                             lat: String(stop.lat),
                             lng: String(stop.lng),
                           })
@@ -1673,7 +1540,7 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
               {filteredStops.length === 0 && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={4}
                     className="px-4 py-8 text-center text-sm font-medium text-[#737b8c]"
                   >
                     No stops found.
@@ -1694,9 +1561,7 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
                 <h4 className="text-base font-bold text-[#1f2633]">
                   {stop.name}
                 </h4>
-                <span className="rounded-full bg-[#eef2ff] px-2.5 py-1 text-[10px] font-bold uppercase text-[#0a4cad]">
-                  {stop.rfidTag}
-                </span>
+
               </div>
               <p className="text-xs text-[#586579]">
                 Lat: {stop.lat.toFixed(5)} | Lng: {stop.lng.toFixed(5)}
@@ -1708,7 +1573,6 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
                     setEditStop({
                       id: stop.id,
                       name: stop.name,
-                      rfidTag: stop.rfidTag,
                       lat: String(stop.lat),
                       lng: String(stop.lng),
                     })
@@ -1733,9 +1597,7 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <div className="mb-4">
               <h3 className="text-xl font-bold text-[#1f2633]">Edit Stop</h3>
-              <p className="text-sm text-[#586579]">
-                Update the RFID and coordinates for this stop.
-              </p>
+                <p className="text-sm text-[#586579]">Update coordinates for this stop.</p>
             </div>
             <div className="space-y-3">
               <label className="space-y-1.5">
@@ -1748,21 +1610,6 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
                   onChange={(event) =>
                     setEditStop((prev) =>
                       prev ? { ...prev, name: event.target.value } : prev,
-                    )
-                  }
-                  className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
-                />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
-                  RFID Tag
-                </span>
-                <input
-                  type="text"
-                  value={editStop.rfidTag}
-                  onChange={(event) =>
-                    setEditStop((prev) =>
-                      prev ? { ...prev, rfidTag: event.target.value } : prev,
                     )
                   }
                   className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
@@ -1826,7 +1673,6 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
                         name: editStop.name,
-                        rfidTag: editStop.rfidTag,
                         lat,
                         lng,
                       }),
@@ -1908,7 +1754,9 @@ function RouteStopsPanel({
   const router = useRouter();
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const [selectedStopIds, setSelectedStopIds] = useState<string[]>([]);
-  const [orderValue, setOrderValue] = useState("");
+  const [scheduleBase, setScheduleBase] = useState("07:00");
+  const [scheduleStepMinutes, setScheduleStepMinutes] = useState("5");
+  const [stopSearchQuery, setStopSearchQuery] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [orderedStops, setOrderedStops] = useState<RouteStopItem[]>([]);
   const [originalOrder, setOriginalOrder] = useState<Record<string, number>>(
@@ -1925,10 +1773,18 @@ function RouteStopsPanel({
     return routeStops.filter((item) => item.routeId === selectedRouteId);
   }, [routeStops, selectedRouteId]);
 
+  const selectedRouteStops = useMemo(() => {
+    if (!selectedRouteId) {
+      return [] as RouteStopItem[];
+    }
+    return routeStops.filter((item) => item.routeId === selectedRouteId);
+  }, [routeStops, selectedRouteId]);
+
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrderedStops(filteredRouteStops);
     const initialOrder = filteredRouteStops.reduce<Record<string, number>>(
-      (acc, item, index) => {
+      (acc, item) => {
         acc[item.id] = item.order;
         return acc;
       },
@@ -1953,6 +1809,64 @@ function RouteStopsPanel({
     return orderedStops.some((item, index) => item.order !== index + 1);
   }, [orderedStops]);
 
+  const originalSchedules = useMemo(() => {
+    return filteredRouteStops.reduce<Record<string, string>>((acc, item) => {
+      acc[item.id] = item.schedule;
+      return acc;
+    }, {});
+  }, [filteredRouteStops]);
+
+  const hasScheduleChanges = useMemo(() => {
+    return orderedStops.some(
+      (item) => originalSchedules[item.id] !== item.schedule,
+    );
+  }, [orderedStops, originalSchedules]);
+
+  const assignedStopIds = useMemo(() => {
+    return new Set(selectedRouteStops.map((item) => item.stopId));
+  }, [selectedRouteStops]);
+
+  const nextOrder = useMemo(() => {
+    if (selectedRouteStops.length === 0) {
+      return 1;
+    }
+    const maxOrder = selectedRouteStops.reduce(
+      (max, item) => Math.max(max, item.order),
+      0,
+    );
+    return maxOrder + 1;
+  }, [selectedRouteStops]);
+
+  const parseMinutes = (value: string) => {
+    const trimmed = value.trim();
+    const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(trimmed);
+    if (!match) {
+      return null;
+    }
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    return hours * 60 + minutes;
+  };
+
+  const formatMinutes = (total: number) => {
+    const safeTotal = ((total % 1440) + 1440) % 1440;
+    const hours = Math.floor(safeTotal / 60)
+      .toString()
+      .padStart(2, "0");
+    const minutes = Math.floor(safeTotal % 60)
+      .toString()
+      .padStart(2, "0");
+    return `${hours}:${minutes}`;
+  };
+
+  const filteredStops = useMemo(() => {
+    if (!stopSearchQuery.trim()) {
+      return stops;
+    }
+    const term = stopSearchQuery.toLowerCase();
+    return stops.filter((stop) => `${stop.name}`.toLowerCase().includes(term));
+  }, [stops, stopSearchQuery]);
+
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-[#cfd4e2] bg-white p-5 shadow-sm sm:p-6">
@@ -1963,7 +1877,7 @@ function RouteStopsPanel({
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="space-y-1.5">
             <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
               Route
@@ -1981,42 +1895,89 @@ function RouteStopsPanel({
               ))}
             </select>
           </label>
-          <label className="space-y-1.5">
+          <div className="space-y-1.5">
             <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
               Stops
             </span>
-            <select
-              multiple
-              value={selectedStopIds}
-              onChange={(event) => {
-                const values = Array.from(event.target.selectedOptions).map(
-                  (option) => option.value,
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#737b8c]" />
+              <input
+                type="text"
+                value={stopSearchQuery}
+                onChange={(event) => setStopSearchQuery(event.target.value)}
+                placeholder="Search stops..."
+                className="w-full rounded-lg border border-[#c7cfe1] bg-white py-2 pl-9 pr-3 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737b8c]">
+                  Start Time
+                </span>
+                <input
+                  type="text"
+                  value={scheduleBase}
+                  onChange={(event) => setScheduleBase(event.target.value)}
+                  placeholder="07:00"
+                  className="w-full rounded-lg border border-[#c7cfe1] bg-white px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737b8c]">
+                  Interval (min)
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  value={scheduleStepMinutes}
+                  onChange={(event) => setScheduleStepMinutes(event.target.value)}
+                  className="w-full rounded-lg border border-[#c7cfe1] bg-white px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+                />
+              </label>
+            </div>
+            <div className="h-44 space-y-2 overflow-auto rounded-lg border border-[#c7cfe1] bg-[#eef2ff] p-2">
+              {filteredStops.map((stop) => {
+                const selected = selectedStopIds.includes(stop.id);
+                const alreadyAssigned = assignedStopIds.has(stop.id);
+                return (
+                  <button
+                    key={stop.id}
+                    type="button"
+                    onClick={() =>
+                      setSelectedStopIds((prev) =>
+                        prev.includes(stop.id)
+                          ? prev.filter((id) => id !== stop.id)
+                          : [...prev, stop.id],
+                      )
+                    }
+                    className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                      selected
+                        ? "border-[#0a4cad] bg-white text-[#1f2633]"
+                        : "border-transparent bg-white/70 text-[#3d4558] hover:border-[#c7cfe1]"
+                    }`}
+                  >
+                    <span>{stop.name}</span>
+                    {selected ? (
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#0a4cad] text-white">
+                        <Check className="h-3.5 w-3.5" />
+                      </span>
+                    ) : null}
+                    {alreadyAssigned ? (
+                      <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                        Assigned
+                      </span>
+                    ) : null}
+                  </button>
                 );
-                setSelectedStopIds(values);
-              }}
-              className="h-32 w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
-            >
-              {stops.map((stop) => (
-                <option key={stop.id} value={stop.id}>
-                  {stop.name}
-                </option>
-              ))}
-            </select>
+              })}
+              {filteredStops.length === 0 ? (
+                <p className="px-2 py-3 text-sm text-[#737b8c]">No stops found.</p>
+              ) : null}
+            </div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#737b8c]">
-              Hold Ctrl/Cmd to select multiple
+              Next order starts at {nextOrder}
             </p>
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586579]">
-              Start Order
-            </span>
-            <input
-              type="number"
-              value={orderValue}
-              onChange={(event) => setOrderValue(event.target.value)}
-              className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
-            />
-          </label>
+          </div>
         </div>
 
         {errorMessage ? (
@@ -2029,23 +1990,36 @@ function RouteStopsPanel({
           type="button"
           onClick={async () => {
             setErrorMessage(null);
-            if (!selectedRouteId || selectedStopIds.length === 0 || !orderValue) {
-              setErrorMessage("Please select route, stops, and order.");
+            if (!selectedRouteId || selectedStopIds.length === 0) {
+              setErrorMessage("Please select route and at least one stop.");
               return;
             }
-            const order = Number(orderValue);
-            if (!Number.isFinite(order) || order <= 0) {
-              setErrorMessage("Order must be a positive number.");
-              return;
+            const selectedAssigned = selectedStopIds.filter((id) =>
+              assignedStopIds.has(id),
+            );
+            if (selectedAssigned.length > 0) {
+              setErrorMessage(
+                "Some selected stops are already assigned to this route and were skipped.",
+              );
             }
-            for (const [index, stopId] of selectedStopIds.entries()) {
+
+            const pendingStopIds = selectedStopIds.filter(
+              (id) => !assignedStopIds.has(id),
+            );
+
+            const baseMinutes = parseMinutes(scheduleBase) ?? 0;
+            const interval = Math.max(1, Number(scheduleStepMinutes) || 5);
+
+            for (const [index, stopId] of pendingStopIds.entries()) {
+              const schedule = formatMinutes(baseMinutes + index * interval);
               const response = await fetch("/api/admin/route-stops", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   routeId: selectedRouteId,
                   stopId,
-                  order: order + index,
+                  order: nextOrder + index,
+                  schedule,
                 }),
               });
               if (!response.ok) {
@@ -2057,7 +2031,6 @@ function RouteStopsPanel({
               }
             }
             setSelectedStopIds([]);
-            setOrderValue("");
             router.refresh();
           }}
           className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#0a4cad] px-5 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90"
@@ -2074,12 +2047,18 @@ function RouteStopsPanel({
           </h3>
           <button
             type="button"
-            disabled={!selectedRouteId || orderedStops.length === 0 || !hasReorderChanges}
+            disabled={
+              !selectedRouteId ||
+              orderedStops.length === 0 ||
+              (!hasReorderChanges && !hasScheduleChanges)
+            }
             onClick={async () => {
               setErrorMessage(null);
               for (const [index, item] of orderedStops.entries()) {
                 const newOrder = index + 1;
-                if (originalOrder[item.id] === newOrder) {
+                const scheduleChanged =
+                  originalSchedules[item.id] !== item.schedule;
+                if (originalOrder[item.id] === newOrder && !scheduleChanged) {
                   continue;
                 }
                 const response = await fetch(
@@ -2087,7 +2066,10 @@ function RouteStopsPanel({
                   {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ order: newOrder }),
+                    body: JSON.stringify({
+                      order: newOrder,
+                      schedule: item.schedule,
+                    }),
                   },
                 );
                 if (!response.ok) {
@@ -2111,6 +2093,7 @@ function RouteStopsPanel({
                 <th className="px-4 py-3">Route</th>
                 <th className="px-4 py-3">Stop</th>
                 <th className="px-4 py-3">Order</th>
+                <th className="px-4 py-3">Schedule</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -2118,7 +2101,7 @@ function RouteStopsPanel({
               {!selectedRouteId ? (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={5}
                     className="px-4 py-8 text-center text-sm font-medium text-[#737b8c]"
                   >
                     Select a route to manage its stops.
@@ -2158,6 +2141,22 @@ function RouteStopsPanel({
                       <span className="inline-flex cursor-grab items-center gap-2 rounded-full bg-[#eef2ff] px-3 py-1 text-xs font-semibold text-[#0a4cad]">
                         #{index + 1}
                       </span>
+                    </td>
+                    <td className="px-4 py-4 text-[#5b6272]">
+                      <input
+                        type="text"
+                        value={item.schedule}
+                        onChange={(event) =>
+                          setOrderedStops((prev) =>
+                            prev.map((entry) =>
+                              entry.id === item.id
+                                ? { ...entry, schedule: event.target.value }
+                                : entry,
+                            ),
+                          )
+                        }
+                        className="w-20 rounded-md border border-[#d4daea] bg-white px-2 py-1 text-xs text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+                      />
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex justify-end gap-1">
@@ -2237,18 +2236,256 @@ function RouteStopsPanel({
   );
 }
 
+function LogsPanel({ logs }: { logs: LogItem[] }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<LogItem["status"] | "ALL">(
+    "ALL",
+  );
+
+  const filteredLogs = useMemo(() => {
+    const term = searchQuery.trim().toLowerCase();
+    return logs.filter((item) => {
+      const matchesSearch =
+        term === "" ||
+        `${item.action} ${item.entity} ${item.entityId ?? ""} ${item.actorName} ${item.actorRole} ${item.ipAddress} ${item.details}`
+          .toLowerCase()
+          .includes(term);
+      const matchesStatus =
+        statusFilter === "ALL" || item.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [logs, searchQuery, statusFilter]);
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-[#cfd4e2] bg-white shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-[#d8deeb] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#1f2633]">
+          System Logs (Latest 200)
+        </h3>
+        <div className="flex items-center gap-3">
+          <div className="relative w-full sm:w-64">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#737b8c]" />
+            <input
+              type="text"
+              placeholder="Search logs..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="w-full rounded-md border border-[#d4daea] bg-[#eef2ff] py-2 pl-9 pr-3 text-sm outline-none ring-[#0a4cad] transition focus:ring-2"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(event) =>
+              setStatusFilter(event.target.value as LogItem["status"] | "ALL")
+            }
+            className="cursor-pointer rounded-md border border-[#d4daea] bg-[#eef2ff] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#485062] outline-none ring-[#0a4cad] focus:ring-2"
+          >
+            <option value="ALL">All</option>
+            <option value="SUCCESS">Success</option>
+            <option value="FAILED">Failed</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
+        <table className="min-w-full border-collapse text-left">
+          <thead>
+            <tr className="bg-[#f1f4ff] text-[11px] font-bold uppercase tracking-[0.15em] text-[#586579]">
+              <th className="px-4 py-3">Time</th>
+              <th className="px-4 py-3">Action</th>
+              <th className="px-4 py-3">Entity</th>
+              <th className="px-4 py-3">Actor</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">IP</th>
+              <th className="px-4 py-3">Details</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#e0e5f1]">
+            {filteredLogs.map((item) => (
+              <tr key={item.id} className="hover:bg-[#f9fbff]">
+                <td className="px-4 py-3 text-sm text-[#586579]">
+                  {new Date(item.createdAt).toLocaleString()}
+                </td>
+                <td className="px-4 py-3 font-bold text-[#1f2633]">{item.action}</td>
+                <td className="px-4 py-3 text-[#586579]">
+                  {item.entity}
+                  {item.entityId ? ` (${item.entityId})` : ""}
+                </td>
+                <td className="px-4 py-3 text-[#586579]">
+                  {item.actorName} ({item.actorRole})
+                </td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${
+                      item.status === "SUCCESS"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-rose-100 text-rose-700"
+                    }`}
+                  >
+                    {item.status}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-[#586579]">{item.ipAddress}</td>
+                <td className="max-w-md truncate px-4 py-3 text-[#586579]" title={item.details}>
+                  {item.details}
+                </td>
+              </tr>
+            ))}
+            {filteredLogs.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-sm text-[#737b8c]">
+                  No logs found.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="space-y-3 p-4 md:hidden">
+        {filteredLogs.map((item) => (
+          <article key={item.id} className="rounded-xl border border-[#dbe2f0] bg-[#fbfcff] p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-bold text-[#1f2633]">{item.action}</p>
+              <span
+                className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${
+                  item.status === "SUCCESS"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-rose-100 text-rose-700"
+                }`}
+              >
+                {item.status}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-[#586579]">
+              {new Date(item.createdAt).toLocaleString()}
+            </p>
+            <p className="mt-1 text-sm text-[#586579]">
+              {item.entity}
+              {item.entityId ? ` (${item.entityId})` : ""}
+            </p>
+            <p className="text-xs text-[#586579]">
+              {item.actorName} ({item.actorRole}) • {item.ipAddress}
+            </p>
+            <p className="mt-2 text-xs text-[#586579] break-all">{item.details}</p>
+          </article>
+        ))}
+        {filteredLogs.length === 0 ? (
+          <div className="rounded-xl border border-[#dbe2f0] bg-[#fbfcff] p-4 text-center text-sm text-[#737b8c]">
+            No logs found.
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function ArrivalLogsPanel({ logs }: { logs: ArrivalLogItem[] }) {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredLogs = useMemo(() => {
+    const term = searchQuery.trim().toLowerCase();
+    return logs.filter((item) => {
+      if (!term) {
+        return true;
+      }
+      return `${item.busId} ${item.routeLabel} ${item.stopName} ${item.rfidTag}`
+        .toLowerCase()
+        .includes(term);
+    });
+  }, [logs, searchQuery]);
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-[#cfd4e2] bg-white shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-[#d8deeb] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#1f2633]">
+          Arrival Logs (Latest 200)
+        </h3>
+        <div className="relative w-full sm:w-64">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#737b8c]" />
+          <input
+            type="text"
+            placeholder="Search arrivals..."
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            className="w-full rounded-md border border-[#d4daea] bg-[#eef2ff] py-2 pl-9 pr-3 text-sm outline-none ring-[#0a4cad] transition focus:ring-2"
+          />
+        </div>
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
+        <table className="min-w-full border-collapse text-left">
+          <thead>
+            <tr className="bg-[#f1f4ff] text-[11px] font-bold uppercase tracking-[0.15em] text-[#586579]">
+              <th className="px-4 py-3">Time</th>
+              <th className="px-4 py-3">Bus</th>
+              <th className="px-4 py-3">Route</th>
+              <th className="px-4 py-3">Stop</th>
+              <th className="px-4 py-3">RFID</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#e0e5f1]">
+            {filteredLogs.map((item) => (
+              <tr key={item.id} className="hover:bg-[#f9fbff]">
+                <td className="px-4 py-3 text-sm text-[#586579]">
+                  {new Date(item.createdAt).toLocaleString()}
+                </td>
+                <td className="px-4 py-3 font-bold text-[#1f2633]">{item.busId}</td>
+                <td className="px-4 py-3 text-[#586579]">{item.routeLabel}</td>
+                <td className="px-4 py-3 text-[#586579]">{item.stopName}</td>
+                <td className="px-4 py-3 text-[#586579]">{item.rfidTag}</td>
+              </tr>
+            ))}
+            {filteredLogs.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-sm text-[#737b8c]">
+                  No arrival logs found.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="space-y-3 p-4 md:hidden">
+        {filteredLogs.map((item) => (
+          <article key={item.id} className="rounded-xl border border-[#dbe2f0] bg-[#fbfcff] p-4">
+            <p className="text-sm font-bold text-[#1f2633]">{item.busId}</p>
+            <p className="mt-1 text-xs text-[#586579]">
+              {new Date(item.createdAt).toLocaleString()}
+            </p>
+            <p className="mt-2 text-sm text-[#586579]">{item.routeLabel}</p>
+            <p className="text-sm text-[#586579]">Stop: {item.stopName}</p>
+            <p className="text-xs text-[#586579]">RFID: {item.rfidTag}</p>
+          </article>
+        ))}
+        {filteredLogs.length === 0 ? (
+          <div className="rounded-xl border border-[#dbe2f0] bg-[#fbfcff] p-4 text-center text-sm text-[#737b8c]">
+            No arrival logs found.
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 export default function AdminClientPage({
   buses,
   configuredRoutes,
   stops,
   routeStops,
+  logs,
+  arrivalLogs,
 }: {
   buses: BusItem[];
   configuredRoutes: ConfiguredRoute[];
   stops: StopItem[];
   routeStops: RouteStopItem[];
+  logs: LogItem[];
+  arrivalLogs: ArrivalLogItem[];
 }) {
   const [tab, setTab] = useState<AdminTab>("buses");
+  const { isConnected, busPassengers, busHeartbeats, busRFIDs, recentArrivals, lastUpdate } = useMqttContext();
 
   return (
     <section className="space-y-6 md:space-y-8">
@@ -2259,6 +2496,29 @@ export default function AdminClientPage({
         <h1 className="text-4xl font-extrabold tracking-tight text-[#1b2435] max-md:text-3xl">
           Fleet & Route Management
         </h1>
+        <div className="mt-4 flex flex-wrap items-center gap-4">
+          <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${isConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+            {isConnected ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+            MQTT: {isConnected ? 'Connected' : 'Disconnected'}
+          </div>
+          <div className="flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1.5 text-xs font-medium text-blue-700">
+            <Signal className="h-3.5 w-3.5" />
+            {busPassengers.size} IR Sensors
+          </div>
+          <div className="flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-700">
+            <Signal className="h-3.5 w-3.5" />
+            {busRFIDs.size} RFID Active
+          </div>
+          <div className="flex items-center gap-2 rounded-full bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700">
+            <Signal className="h-3.5 w-3.5" />
+            {busHeartbeats.size} Devices Online
+          </div>
+          {lastUpdate && (
+            <span className="text-xs text-[#586579]">
+              Last update: {lastUpdate.toLocaleTimeString()}
+            </span>
+          )}
+        </div>
       </header>
 
       <div className="border-b border-[#cdd4e4]">
@@ -2316,6 +2576,45 @@ export default function AdminClientPage({
             <ListFilter className="h-4 w-4" />
             Route Stops
           </button>
+          <button
+            role="tab"
+            aria-selected={tab === "arrival-logs"}
+            onClick={() => setTab("arrival-logs")}
+            className={`inline-flex cursor-pointer items-center gap-2 border-b-2 px-1 py-2.5 text-sm font-bold transition-colors ${
+              tab === "arrival-logs"
+                ? "border-[#0a4cad] text-[#0a4cad]"
+                : "border-transparent text-[#586579] hover:text-[#0a4cad]"
+            }`}
+          >
+            <TrainFront className="h-4 w-4" />
+            Arrivals
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === "iot-devices"}
+            onClick={() => setTab("iot-devices")}
+            className={`inline-flex cursor-pointer items-center gap-2 border-b-2 px-1 py-2.5 text-sm font-bold transition-colors ${
+              tab === "iot-devices"
+                ? "border-[#0a4cad] text-[#0a4cad]"
+                : "border-transparent text-[#586579] hover:text-[#0a4cad]"
+            }`}
+          >
+            <Wifi className="h-4 w-4" />
+            IoT Devices
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === "logs"}
+            onClick={() => setTab("logs")}
+            className={`inline-flex cursor-pointer items-center gap-2 border-b-2 px-1 py-2.5 text-sm font-bold transition-colors ${
+              tab === "logs"
+                ? "border-[#0a4cad] text-[#0a4cad]"
+                : "border-transparent text-[#586579] hover:text-[#0a4cad]"
+            }`}
+          >
+            <ScrollText className="h-4 w-4" />
+            Logs
+          </button>
         </div>
       </div>
 
@@ -2325,12 +2624,120 @@ export default function AdminClientPage({
         <RoutesPanel configuredRoutes={configuredRoutes} />
       ) : tab === "stops" ? (
         <StopsPanel stops={stops} />
-      ) : (
+      ) : tab === "route-stops" ? (
         <RouteStopsPanel
           configuredRoutes={configuredRoutes}
           stops={stops}
           routeStops={routeStops}
         />
+      ) : tab === "arrival-logs" ? (
+        <ArrivalLogsPanel logs={arrivalLogs} />
+      ) : tab === "iot-devices" ? (
+        <div className="rounded-xl border border-[#dbe2f9] bg-white p-6">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-[#141b2c]">Connected IoT Devices</h3>
+              <p className="text-sm text-[#586579]">RFID Scanner & IR Sensor status from MQTT broker</p>
+            </div>
+            <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${isConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {isConnected ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+              {isConnected ? 'Connected' : 'Disconnected'}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div className="rounded-lg bg-[#f8f9ff] p-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#586579]">RFID Scans</p>
+              <p className="text-3xl font-bold text-amber-600">{busRFIDs.size}</p>
+              <p className="text-xs text-[#586579]">Bus di halte</p>
+            </div>
+            <div className="rounded-lg bg-[#f8f9ff] p-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#586579]">Passenger Data</p>
+              <p className="text-3xl font-bold text-[#0040a1]">{busPassengers.size}</p>
+              <p className="text-xs text-[#586579]">Active sensors</p>
+            </div>
+            <div className="rounded-lg bg-[#f8f9ff] p-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#586579]">Heartbeats</p>
+              <p className="text-3xl font-bold text-green-600">{busHeartbeats.size}</p>
+              <p className="text-xs text-[#586579]">Devices online</p>
+            </div>
+            <div className="rounded-lg bg-[#f8f9ff] p-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#586579]">Recent Arrivals</p>
+              <p className="text-3xl font-bold text-purple-600">{recentArrivals.length}</p>
+              <p className="text-xs text-[#586579]">Terakhir 20</p>
+            </div>
+          </div>
+
+          {recentArrivals.length > 0 && (
+            <div className="mt-6">
+              <h4 className="mb-3 text-sm font-bold text-[#141b2c]">Riwayat RFID Scan (Bus masuk halte)</h4>
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse text-left">
+                  <thead>
+                    <tr className="bg-[#f1f4ff] text-[11px] font-bold uppercase tracking-[0.15em] text-[#586579]">
+                      <th className="px-4 py-3">Halte</th>
+                      <th className="px-4 py-3">UID (RFID)</th>
+                      <th className="px-4 py-3">Waktu</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#e0e5f1]">
+                    {recentArrivals.slice(0, 10).map((arrival, idx) => (
+                      <tr key={`${arrival.halte}-${arrival.timestamp}-${idx}`} className="hover:bg-[#f9fbff]">
+                        <td className="px-4 py-3 font-bold text-[#0040a1]">{arrival.halte}</td>
+                        <td className="px-4 py-3 text-[#5b6272] font-mono">{arrival.uid}</td>
+                        <td className="px-4 py-3 text-[#5b6272]">{arrival.timestamp}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {busHeartbeats.size > 0 && (
+            <div className="mt-6">
+              <h4 className="mb-3 text-sm font-bold text-[#141b2c]">Device Heartbeats</h4>
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse text-left">
+                  <thead>
+                    <tr className="bg-[#f1f4ff] text-[11px] font-bold uppercase tracking-[0.15em] text-[#586579]">
+                      <th className="px-4 py-3">Bus ID</th>
+                      <th className="px-4 py-3">Device ID</th>
+                      <th className="px-4 py-3">Battery</th>
+                      <th className="px-4 py-3">Signal</th>
+                      <th className="px-4 py-3">Last Heartbeat</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#e0e5f1]">
+                    {Array.from(busHeartbeats.entries()).map(([busId, heartbeat]) => (
+                      <tr key={busId} className="hover:bg-[#f9fbff]">
+                        <td className="px-4 py-3 font-bold text-[#0040a1]">{busId}</td>
+                        <td className="px-4 py-3 text-[#5b6272]">{heartbeat.deviceId}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${heartbeat.battery && heartbeat.battery > 20 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {heartbeat.battery ?? 'N/A'}%
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-[#5b6272]">{heartbeat.signal ?? 'N/A'} dBm</td>
+                        <td className="px-4 py-3 text-[#5b6272]">{new Date(heartbeat.timestamp).toLocaleTimeString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {busRFIDs.size === 0 && busPassengers.size === 0 && busHeartbeats.size === 0 && (
+            <div className="mt-6 rounded-lg bg-[#f8f9ff] p-8 text-center">
+              <WifiOff className="mx-auto mb-3 h-8 w-8 text-[#586579]" />
+              <p className="font-medium text-[#586579]">No IoT devices connected</p>
+              <p className="text-sm text-[#737785]">Waiting for devices to send data via MQTT...</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <LogsPanel logs={logs} />
       )}
     </section>
   );

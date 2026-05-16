@@ -57,12 +57,10 @@ export default function LoginPage() {
 
       <section className="relative flex w-full items-center justify-center p-6 sm:p-10 lg:w-1/2 lg:p-10 xl:p-14">
         <div className="absolute right-6 top-6 hidden text-sm font-medium text-[#596072] sm:block lg:right-10 lg:top-8">
-          Need system access?
-          <Link
-            href="/register"
-            className="ml-1 font-bold text-[#0c49a6] hover:underline"
-          >
-            Register
+          Admin access only.
+          <span className="mx-2 text-[#9ba4b8]">|</span>
+          <Link href="/dashboard" className="font-bold text-[#0c49a6] hover:underline">
+            Continue as User
           </Link>
         </div>
 
@@ -81,7 +79,7 @@ export default function LoginPage() {
               Access Portal
             </h2>
             <p className="mt-1 text-base font-medium text-[#6a7182]">
-              Enter your credentials to manage the fleet.
+              Admin login only. Use dashboard for public fleet access.
             </p>
           </header>
 
@@ -154,12 +152,14 @@ export default function LoginPage() {
 
           <div className="mt-8 border-t border-[#e6ebf5] pt-8 sm:hidden">
             <p className="text-center text-sm font-medium text-[#6a7182]">
-              Need system access?
+              Admin access only.
+            </p>
+            <p className="mt-2 text-center text-sm font-medium text-[#6a7182]">
               <Link
-                href="/register"
-                className="ml-1 font-bold text-[#0c49a6] hover:underline"
+                href="/dashboard"
+                className="font-bold text-[#0c49a6] hover:underline"
               >
-                Register
+                Continue as User
               </Link>
             </p>
           </div>

@@ -6,10 +6,12 @@ import {
   ChevronRight,
   Eye,
   MoreVertical,
-  Plus,
   Search,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useMqttContext } from "@/lib/iot";
 
 type RouteStatus = "on-schedule" | "minor-delays" | "delayed";
 type RouteFilter = RouteStatus | "all";
@@ -19,10 +21,9 @@ type SortDirection = "asc" | "desc";
 type RouteItem = {
   id: string;
   name: string;
-  direction: string;
-  coverage: string;
   status: RouteStatus;
   activeBuses: number;
+  stops: { name: string; schedule: string }[];
 };
 
 const statusStyles: Record<RouteStatus, string> = {
@@ -75,25 +76,25 @@ export default function RoutesClientPage({
   routesData: {
     id: string;
     name: string;
-    direction: string;
-    coverage: string;
     status: string;
     activeBuses: number;
+    stops: { name: string; schedule: string }[];
   }[];
 }) {
   const routes: RouteItem[] = routesData.map((route) => ({
     id: route.id,
     name: route.name,
-    direction: route.direction,
-    coverage: route.coverage,
     status: statusMap[route.status] ?? "on-schedule",
     activeBuses: route.activeBuses,
+    stops: route.stops,
   }));
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<RouteFilter>("all");
   const [sortKey, setSortKey] = useState<RouteSortKey>("id");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [viewingRoute, setViewingRoute] = useState<RouteItem | null>(null);
+  const { isConnected, busPassengers, busRFIDs, lastUpdate } = useMqttContext();
 
   const handleSort = (key: RouteSortKey) => {
     if (sortKey === key) {
@@ -109,7 +110,7 @@ export default function RoutesClientPage({
     const filtered = routes.filter((route) => {
       const bySearch =
         searchQuery.trim() === "" ||
-        `${route.id} ${route.name} ${route.direction} ${route.coverage}`
+        `${route.id} ${route.name}`
           .toLowerCase()
           .includes(searchQuery.toLowerCase());
       const byStatus = statusFilter === "all" || route.status === statusFilter;
@@ -144,11 +145,23 @@ export default function RoutesClientPage({
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#586579]">
-            Network Management
+            Routes Dashboard
           </p>
           <h1 className="text-3xl font-extrabold tracking-tight text-[#141b2c]">
             Active Route Oversight
           </h1>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${isConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+            {isConnected ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+            {isConnected ? 'MQTT Online' : 'MQTT Offline'}
+          </div>
+          {lastUpdate && (
+            <span className="text-xs text-[#586579]">
+              {busPassengers.size} IR sensors | {busRFIDs.size} RFID active
+            </span>
+          )}
         </div>
 
         <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
@@ -175,13 +188,6 @@ export default function RoutesClientPage({
             ))}
           </select>
 
-          <button
-            type="button"
-            className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#0040a1] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
-          >
-            <Plus className="h-4 w-4" />
-            New Route
-          </button>
         </div>
       </header>
 
@@ -260,9 +266,7 @@ export default function RoutesClientPage({
                           <p className="font-bold text-[#1f2633]">
                             {route.name}
                           </p>
-                          <p className="text-xs text-[#737785]">
-                            {route.coverage}
-                          </p>
+                          <p className="text-xs text-[#737785]">{route.name}</p>
                         </div>
                       </div>
                     </td>
@@ -281,6 +285,7 @@ export default function RoutesClientPage({
                       <div className="inline-flex items-center gap-1">
                         <button
                           aria-label={`View route ${route.id}`}
+                          onClick={() => setViewingRoute(route)}
                           className="cursor-pointer rounded-lg p-2 text-[#0040a1] transition-colors hover:bg-[#eaf0ff]"
                         >
                           <Eye className="h-4 w-4" />
@@ -325,7 +330,7 @@ export default function RoutesClientPage({
                   <h2 className="text-lg font-extrabold text-[#1f2633]">
                     {route.name}
                   </h2>
-                  <p className="text-xs text-[#737785]">{route.coverage}</p>
+                  <p className="text-xs text-[#737785]">{route.name}</p>
                 </div>
                 <RouteStatusBadge status={route.status} />
               </div>
@@ -342,6 +347,7 @@ export default function RoutesClientPage({
               <div className="mt-2 flex justify-end gap-2">
                 <button
                   aria-label={`View route ${route.id}`}
+                  onClick={() => setViewingRoute(route)}
                   className="cursor-pointer rounded-lg bg-white p-2 text-[#0040a1] ring-1 ring-[#dbe2f9]"
                 >
                   <Eye className="h-4 w-4" />
@@ -388,6 +394,64 @@ export default function RoutesClientPage({
           </div>
         </div>
       </div>
+
+      {viewingRoute ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#586579]">
+                  Route {viewingRoute.id}
+                </p>
+                <h3 className="text-2xl font-extrabold text-[#1f2633]">
+                  {viewingRoute.name}
+                </h3>
+                <p className="text-sm text-[#586579]">{viewingRoute.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingRoute(null)}
+                className="rounded-lg border border-[#d4daea] px-3 py-1.5 text-sm font-semibold text-[#485062]"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-[#dbe2f9] bg-[#f8faff] p-4">
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-[#586579]">
+                Route Stops
+              </p>
+              {viewingRoute.stops.length === 0 ? (
+                <p className="text-sm font-medium text-[#737785]">
+                  No stops assigned to this route yet.
+                </p>
+              ) : (
+                <div className="relative px-2 py-3">
+                  <span className="pointer-events-none absolute left-4 right-4 top-[3.2rem] h-1 rounded-full bg-[#c8d8ff]" />
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-4">
+                    {viewingRoute.stops.map((stop, index) => (
+                      <div
+                        key={`${viewingRoute.id}-${stop.name}-${index}`}
+                        className="flex flex-col items-center text-center"
+                      >
+                        <span className="mb-1 text-[11px] font-bold uppercase tracking-[0.2em] text-[#6b7385]">
+                          {stop.schedule}
+                        </span>
+                        <span className="mb-2 line-clamp-2 min-h-10 text-xs font-semibold text-[#1f2633]">
+                          {stop.name}
+                        </span>
+                        <span className="z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#0040a1] text-xs font-bold text-white shadow-sm">
+                          {index + 1}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

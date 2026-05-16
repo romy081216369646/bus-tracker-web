@@ -119,19 +119,22 @@ export default function Navbar() {
                   </>
                 ) : (
                   <div className="space-y-2 p-1">
+                    <p className="px-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7b8598]">
+                      Admin Access
+                    </p>
                     <Link
                       href="/login"
                       onClick={() => setIsMenuOpen(false)}
                       className="block cursor-pointer rounded-lg bg-blue-600 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-blue-700"
                     >
-                      Log in
+                      Admin Log in
                     </Link>
                     <Link
-                      href="/register"
+                      href="/dashboard"
                       onClick={() => setIsMenuOpen(false)}
-                      className="block cursor-pointer rounded-lg border border-blue-200 px-3 py-2 text-center text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                      className="mt-1 block cursor-pointer rounded-lg px-3 py-2 text-center text-xs font-semibold text-slate-600 hover:bg-slate-50"
                     >
-                      Register
+                      Continue as User
                     </Link>
                   </div>
                 )}

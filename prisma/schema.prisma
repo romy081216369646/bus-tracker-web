@@ -30,22 +30,15 @@ enum RouteStatus {
   DELAYED
 }
 
-enum RouteConfigStatus {
-  ACTIVE
-  DRAFT
-  INACTIVE
-}
-
-enum ScheduleType {
-  WEEKDAYS
-  DAILY
-  PEAK
-}
-
 enum BusEventType {
   PASSENGER_IN
   PASSENGER_OUT
   RFID_STOP
+}
+
+enum AuditLogStatus {
+  SUCCESS
+  FAILED
 }
 
 model User {
@@ -59,8 +52,30 @@ model User {
   updatedAt     DateTime
   sessions      Session[]
   accounts      Account[]
+  auditLogs     AuditLog[]
 
   @@map("user")
+}
+
+model AuditLog {
+  id          String         @id @default(cuid())
+  action      String
+  entity      String
+  entityId    String?
+  status      AuditLogStatus @default(SUCCESS)
+  actorUserId String?
+  actorRole   String?
+  ipAddress   String?
+  userAgent   String?
+  details     Json?
+  createdAt   DateTime       @default(now())
+
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([entity, entityId])
+  @@index([actorUserId])
+  @@index([status])
 }
 
 model Session {
@@ -111,11 +126,7 @@ model Route {
   id           String            @id @default(cuid())
   code         String            @unique
   name         String
-  direction    String
-  coverage     String
   status       RouteStatus       @default(ON_SCHEDULE)
-  configStatus RouteConfigStatus @default(ACTIVE)
-  scheduleType ScheduleType      @default(WEEKDAYS)
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
   buses        Bus[]
@@ -125,6 +136,7 @@ model Route {
 model Bus {
   id           String              @id @default(cuid())
   fleetCode    String              @unique
+  rfidTag      String              @unique
   model        String
   capacity     Int
   status       BusOperationalStatus @default(ACTIVE)
@@ -144,7 +156,6 @@ model Bus {
 model Stop {
   id        String      @id @default(cuid())
   name      String
-  rfidTag   String      @unique
   lat       Float
   lng       Float
   createdAt DateTime    @default(now())
@@ -160,6 +171,7 @@ model RouteStop {
   routeId   String
   stopId    String
   order     Int
+  schedule  String   @default("00:00")
   createdAt DateTime @default(now())
 
   route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)

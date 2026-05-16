@@ -2,17 +2,19 @@ type BusStatus = "normal" | "warning" | "delayed";
 
 type BusCardProps = {
   route: string;
-  eta: string;
+  nextArrival: string;
   lastStop: string;
   passengers: number;
   capacity: number;
+  busId: string;
   heading: string;
   status?: BusStatus;
 };
 
 export default function BusCard({
   route,
-  eta,
+  busId: busName,
+  nextArrival,
   lastStop,
   passengers,
   capacity,
@@ -33,7 +35,6 @@ export default function BusCard({
       ? "bg-[#d6e3fb] text-[#3b485a]"
       : "bg-[#dae2ff] text-[#001847]";
 
-  const etaClass = isDelayed ? "text-[#930002]" : "text-[#0040a1]";
   const progressClass = isDelayed ? "bg-[#bc140d]" : "bg-[#0056d2]";
 
   return (
@@ -44,18 +45,32 @@ export default function BusCard({
         >
           {route}
         </span>
-        <span className={`text-2xl font-extrabold tracking-tight ${etaClass}`}>
-          {eta}
+        <span
+          className={`text-2xl font-extrabold tracking-tight ${isDelayed ? "text-[#930002]" : "text-[#0040a1]"}`}
+        >
+          {busName}
         </span>
       </div>
 
       <div className="mb-4">
-        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#586579]">
-          Last Stop
-        </p>
-        <h3 className="text-[1.65rem] font-bold leading-tight text-[#141b2c] max-2xl:text-[1.5rem] max-xl:text-xl">
-          {lastStop}
-        </h3>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#586579]">
+              Last Stop
+            </p>
+            <h3 className="text-[1.65rem] font-bold leading-tight text-[#141b2c] max-2xl:text-[1.5rem] max-xl:text-xl">
+              {lastStop}
+            </h3>
+          </div>
+          <div className="text-right">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#586579]">
+              Next Arrival
+            </p>
+            <p className="text-xl font-extrabold tracking-tight text-[#141b2c]">
+              {nextArrival}
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3">
@@ -69,7 +84,7 @@ export default function BusCard({
         </div>
         <div className="rounded-lg bg-[#e7ebf7] p-3">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#586579]">
-            Heading
+            Next Stop
           </p>
           <p className="wrap-break-words text-[1.3rem] font-bold leading-tight text-[#141b2c] max-2xl:text-2xl max-xl:text-lg">
             {heading}
