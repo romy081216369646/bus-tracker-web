@@ -47,7 +47,7 @@ export async function POST(request: Request) {
 
   try {
     const { fleetCode, rfidTag, model, capacity, status, routeId } = body;
-    const bus = await prisma.$transaction(async (tx: typeof prisma) => {
+    const bus = await prisma.$transaction(async (tx) => {
       const createdBus = await tx.bus.create({
         data: {
           fleetCode: fleetCode!,
