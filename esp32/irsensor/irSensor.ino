@@ -16,6 +16,7 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
+#include <time.h>
 
 // =====================
 // Pin Configuration
@@ -116,6 +117,24 @@ void setup() {
     Serial.print("[Setup] IP: "); Serial.println(WiFi.localIP());
     Serial.print("[Setup] RSSI: "); Serial.print(WiFi.RSSI()); Serial.println(" dBm");
     
+    // Sync NTP time (WIB = UTC+7)
+    configTime(7 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+    Serial.print("[Setup] Syncing NTP time...");
+    struct tm timeinfo;
+    int retries = 0;
+    while (!getLocalTime(&timeinfo) && retries < 10) {
+      delay(500);
+      Serial.print(".");
+      retries++;
+    }
+    Serial.println();
+    if (retries < 10) {
+      Serial.print("[Setup] ✓ NTP synced: ");
+      Serial.println(&timeinfo, "%Y-%m-%d %H:%M:%S WIB");
+    } else {
+      Serial.println("[Setup] ✗ NTP sync failed, timestamp will fallback to uptime");
+    }
+
     // Setup MQTT with SSL/TLS
     espClient.setInsecure();
     espClient.setTimeout(15);  // 15 second timeout
@@ -377,24 +396,24 @@ void flashLED(int ledPin) {
 }
 
 // =====================
-// Get Timestamp (HH:MM:SS)
+// Get Timestamp (HH:MM:SS WIB realtime via NTP)
 // =====================
 String getTimestamp() {
+  struct tm timeinfo;
+  if (getLocalTime(&timeinfo)) {
+    char buf[9];
+    snprintf(buf, sizeof(buf), "%02d:%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+    return String(buf);
+  }
+  
+  // Fallback ke uptime jika NTP belum sync
   unsigned long elapsed = millis() - bootTime;
   unsigned long seconds = elapsed / 1000;
   unsigned long hours = seconds / 3600;
   unsigned long minutes = (seconds % 3600) / 60;
   unsigned long secs = seconds % 60;
   
-  String timestamp = "";
-  if (hours < 10) timestamp += "0";
-  timestamp += String(hours);
-  timestamp += ":";
-  if (minutes < 10) timestamp += "0";
-  timestamp += String(minutes);
-  timestamp += ":";
-  if (secs < 10) timestamp += "0";
-  timestamp += String(secs);
-  
-  return timestamp;
+  char buf[9];
+  snprintf(buf, sizeof(buf), "%02lu:%02lu:%02lu", hours, minutes, secs);
+  return String(buf);
 }
