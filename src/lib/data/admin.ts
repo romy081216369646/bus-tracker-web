@@ -56,6 +56,57 @@ export type AdminArrivalLogItem = {
   rfidTag: string;
 };
 
+type BusQueryResult = {
+  id: string;
+  fleetCode: string;
+  rfidTag: string;
+  model: string;
+  capacity: number;
+  status: "ACTIVE" | "REPAIR" | "STANDBY";
+  routeId: string | null;
+};
+
+type RouteQueryResult = {
+  id: string;
+  code: string;
+  name: string;
+  status: "ON_SCHEDULE" | "MINOR_DELAYS" | "DELAYED";
+};
+
+type RouteStopQueryResult = {
+  id: string;
+  routeId: string;
+  stopId: string;
+  order: number;
+  schedule: string;
+  stop: { name: string };
+};
+
+type LogQueryResult = {
+  id: string;
+  createdAt: Date;
+  action: string;
+  entity: string;
+  entityId: string | null;
+  status: "SUCCESS" | "FAILED";
+  actorRole: string | null;
+  ipAddress: string | null;
+  details: unknown;
+  actor: { name: string; email: string } | null;
+};
+
+type ArrivalEventQueryResult = {
+  id: string;
+  createdAt: Date;
+  rfidTag: string | null;
+  stop: { name: string } | null;
+  bus: {
+    id: string;
+    fleetCode: string;
+    route: { code: string; name: string } | null;
+  };
+};
+
 export async function getAdminBuses(): Promise<AdminBusItem[]> {
   const buses = await prisma.bus.findMany({
     select: {
@@ -68,9 +119,9 @@ export async function getAdminBuses(): Promise<AdminBusItem[]> {
       routeId: true,
     },
     orderBy: { fleetCode: "asc" },
-  });
+  }) as unknown as BusQueryResult[];
 
-  return buses.map((bus) => ({
+  return buses.map((bus: BusQueryResult) => ({
     id: bus.id,
     fleetCode: bus.fleetCode,
     rfidTag: bus.rfidTag,
@@ -90,9 +141,9 @@ export async function getAdminRoutes(): Promise<AdminRouteItem[]> {
       status: true,
     },
     orderBy: { code: "asc" },
-  });
+  }) as unknown as RouteQueryResult[];
 
-  return routes.map((route) => ({
+  return routes.map((route: RouteQueryResult) => ({
     id: route.id,
     code: route.code,
     name: route.name,
@@ -110,7 +161,7 @@ export async function getAdminStops(): Promise<AdminStopItem[]> {
       lng: true,
     },
     orderBy: { name: "asc" },
-  });
+  }) as unknown as AdminStopItem[];
 
   return stops;
 }
@@ -128,9 +179,9 @@ export async function getAdminRouteStops(): Promise<AdminRouteStopItem[]> {
       },
     },
     orderBy: [{ routeId: "asc" }, { order: "asc" }],
-  });
+  }) as unknown as RouteStopQueryResult[];
 
-  return routeStops.map((routeStop) => ({
+  return routeStops.map((routeStop: RouteStopQueryResult) => ({
     id: routeStop.id,
     routeId: routeStop.routeId,
     stopId: routeStop.stopId,
@@ -161,9 +212,9 @@ export async function getAdminLogs(limit = 200): Promise<AdminLogItem[]> {
         },
       },
     },
-  });
+  }) as unknown as LogQueryResult[];
 
-  return logs.map((log) => ({
+  return logs.map((log: LogQueryResult) => ({
     id: log.id,
     createdAt: log.createdAt.toISOString(),
     action: log.action,
@@ -197,9 +248,9 @@ export async function getAdminArrivalLogs(
         },
       },
     },
-  });
+  }) as unknown as ArrivalEventQueryResult[];
 
-  return events.map((event) => {
+  return events.map((event: ArrivalEventQueryResult) => {
     const routeLabel = event.bus.route
       ? `Route ${event.bus.route.code} - ${event.bus.route.name}`
       : "Unassigned";

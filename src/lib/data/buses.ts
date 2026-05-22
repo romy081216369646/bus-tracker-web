@@ -4,6 +4,7 @@ export type BusCardSummary = {
   id: string;
   route: string;
   busCode: string;
+  rfidTag: string;
   nextArrival: string;
   lastStop: string;
   passengers: number;
@@ -20,12 +21,34 @@ type RouteStopScheduleItem = {
   stop: { name: string };
 };
 
+type BusQueryResult = {
+  id: string;
+  fleetCode: string;
+  rfidTag: string;
+  routeId: string | null;
+  route: { name: string } | null;
+  status: string;
+  passengers: number;
+  capacity: number;
+  state: {
+    lastStopId: string | null;
+    lastStop: { name: string } | null;
+    destination: { name: string } | null;
+  } | null;
+};
+
+type GroupByResult = {
+  status: string;
+  _count: { status: number };
+};
+
 export async function getBusCards() {
   const [buses, routeStops] = await Promise.all([
     prisma.bus.findMany({
       select: {
         id: true,
         fleetCode: true,
+        rfidTag: true,
         routeId: true,
         route: {
           select: {
@@ -44,7 +67,7 @@ export async function getBusCards() {
         },
       },
       orderBy: { updatedAt: "desc" },
-    }),
+    }) as unknown as BusQueryResult[],
     prisma.routeStop.findMany({
       select: {
         routeId: true,
@@ -54,17 +77,17 @@ export async function getBusCards() {
         stop: { select: { name: true } },
       },
       orderBy: [{ routeId: "asc" }, { order: "asc" }],
-    }),
+    }) as unknown as RouteStopScheduleItem[],
   ]);
 
   const routeStopsByRoute = new Map<string, RouteStopScheduleItem[]>();
-  routeStops.forEach((item) => {
+  routeStops.forEach((item: RouteStopScheduleItem) => {
     const list = routeStopsByRoute.get(item.routeId) ?? [];
     list.push(item);
     routeStopsByRoute.set(item.routeId, list);
   });
 
-  return buses.map<BusCardSummary>((bus) => {
+  return buses.map<BusCardSummary>((bus: BusQueryResult) => {
     const routeSchedule = bus.routeId
       ? (routeStopsByRoute.get(bus.routeId) ?? [])
       : [];
@@ -78,7 +101,7 @@ export async function getBusCards() {
 
     if (routeSchedule.length > 0) {
       const currentIndex = currentLastStopId
-        ? routeSchedule.findIndex((item) => item.stopId === currentLastStopId)
+        ? routeSchedule.findIndex((item: RouteStopScheduleItem) => item.stopId === currentLastStopId)
         : -1;
 
       const nextIndex =
@@ -104,6 +127,7 @@ export async function getBusCards() {
       nextArrival,
       lastStop: currentLastStopName,
       busCode: busCode,
+      rfidTag: bus.rfidTag,
       passengers: bus.passengers,
       capacity: bus.capacity,
       heading: nextStopName,
@@ -116,16 +140,16 @@ export async function getFleetSummary() {
   const counts = await prisma.bus.groupBy({
     by: ["status"],
     _count: { status: true },
-  });
+  }) as unknown as GroupByResult[];
 
   const activeCount = counts.reduce(
-    (total, item) =>
+    (total: number, item: GroupByResult) =>
       item.status === "ACTIVE" ? total + item._count.status : total,
     0,
   );
 
   const delayedCount = counts.reduce(
-    (total, item) =>
+    (total: number, item: GroupByResult) =>
       item.status !== "ACTIVE" ? total + item._count.status : total,
     0,
   );

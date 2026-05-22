@@ -11,13 +11,13 @@ import {
 export default async function AdminPage() {
   const [buses, configuredRoutes, stops, routeStops, logs, arrivalLogs] =
     await Promise.all([
-    getAdminBuses(),
-    getAdminRoutes(),
-    getAdminStops(),
-    getAdminRouteStops(),
-    getAdminLogs(),
-    getAdminArrivalLogs(),
-  ]);
+      getAdminBuses(),
+      getAdminRoutes(),
+      getAdminStops(),
+      getAdminRouteStops(),
+      getAdminLogs(),
+      getAdminArrivalLogs(),
+    ]);
 
   return (
     <AdminClientPage

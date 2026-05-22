@@ -29,8 +29,8 @@ type AdminTab =
   | "stops"
   | "route-stops"
   | "logs"
-  | "arrival-logs"
-  | "iot-devices";
+  | "arrival-logs";
+// | "iot-devices";
 
 type BusStatus = "ACTIVE" | "REPAIR" | "STANDBY";
 type RouteStatus = "ON_SCHEDULE" | "MINOR_DELAYS" | "DELAYED";
@@ -623,9 +623,7 @@ function BusesPanel({
                   value={editBus.fleetCode}
                   onChange={(event) =>
                     setEditBus((prev) =>
-                      prev
-                        ? { ...prev, fleetCode: event.target.value }
-                        : prev,
+                      prev ? { ...prev, fleetCode: event.target.value } : prev,
                     )
                   }
                   className="w-full rounded-lg border border-[#c7cfe1] bg-[#eef2ff] px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
@@ -781,9 +779,7 @@ function BusesPanel({
       {deleteBusId ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-[#1f2633]">
-              Delete bus?
-            </h3>
+            <h3 className="text-lg font-bold text-[#1f2633]">Delete bus?</h3>
             <p className="mt-2 text-sm text-[#586579]">
               This action cannot be undone.
             </p>
@@ -858,9 +854,7 @@ function RoutesPanel({
     const filtered = configuredRoutes.filter((item) => {
       const bySearch =
         searchQuery.trim() === "" ||
-        `${item.routeLabel}`
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase());
+        `${item.routeLabel}`.toLowerCase().includes(searchQuery.toLowerCase());
       const byStatus = statusFilter === "ALL" || item.status === statusFilter;
 
       return bySearch && byStatus;
@@ -963,10 +957,7 @@ function RoutesPanel({
           disabled={isSubmitting}
           onClick={async () => {
             setErrorMessage(null);
-            if (
-              !formState.code ||
-              !formState.name
-            ) {
+            if (!formState.code || !formState.name) {
               setErrorMessage("Please fill all route fields.");
               return;
             }
@@ -1226,8 +1217,8 @@ function RoutesPanel({
                       prev
                         ? {
                             ...prev,
-                          status: event.target.value as RouteStatus,
-                        }
+                            status: event.target.value as RouteStatus,
+                          }
                         : prev,
                     )
                   }
@@ -1286,9 +1277,7 @@ function RoutesPanel({
       {deleteRouteId ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-[#1f2633]">
-              Delete route?
-            </h3>
+            <h3 className="text-lg font-bold text-[#1f2633]">Delete route?</h3>
             <p className="mt-2 text-sm text-[#586579]">
               This action cannot be undone.
             </p>
@@ -1311,9 +1300,7 @@ function RoutesPanel({
                     const payload = (await response.json()) as {
                       error?: string;
                     };
-                    setErrorMessage(
-                      payload.error ?? "Failed to delete route.",
-                    );
+                    setErrorMessage(payload.error ?? "Failed to delete route.");
                     return;
                   }
                   setDeleteRouteId(null);
@@ -1429,11 +1416,7 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
           disabled={isSubmitting}
           onClick={async () => {
             setErrorMessage(null);
-            if (
-              !formState.name ||
-              !formState.lat ||
-              !formState.lng
-            ) {
+            if (!formState.name || !formState.lat || !formState.lng) {
               setErrorMessage("Please fill all stop fields.");
               return;
             }
@@ -1561,7 +1544,6 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
                 <h4 className="text-base font-bold text-[#1f2633]">
                   {stop.name}
                 </h4>
-
               </div>
               <p className="text-xs text-[#586579]">
                 Lat: {stop.lat.toFixed(5)} | Lng: {stop.lng.toFixed(5)}
@@ -1597,7 +1579,9 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <div className="mb-4">
               <h3 className="text-xl font-bold text-[#1f2633]">Edit Stop</h3>
-                <p className="text-sm text-[#586579]">Update coordinates for this stop.</p>
+              <p className="text-sm text-[#586579]">
+                Update coordinates for this stop.
+              </p>
             </div>
             <div className="space-y-3">
               <label className="space-y-1.5">
@@ -1699,9 +1683,7 @@ function StopsPanel({ stops }: { stops: StopItem[] }) {
       {deleteStopId ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-[#1f2633]">
-              Delete stop?
-            </h3>
+            <h3 className="text-lg font-bold text-[#1f2633]">Delete stop?</h3>
             <p className="mt-2 text-sm text-[#586579]">
               This action cannot be undone.
             </p>
@@ -1930,7 +1912,9 @@ function RouteStopsPanel({
                   type="number"
                   min={1}
                   value={scheduleStepMinutes}
-                  onChange={(event) => setScheduleStepMinutes(event.target.value)}
+                  onChange={(event) =>
+                    setScheduleStepMinutes(event.target.value)
+                  }
                   className="w-full rounded-lg border border-[#c7cfe1] bg-white px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
                 />
               </label>
@@ -1971,7 +1955,9 @@ function RouteStopsPanel({
                 );
               })}
               {filteredStops.length === 0 ? (
-                <p className="px-2 py-3 text-sm text-[#737b8c]">No stops found.</p>
+                <p className="px-2 py-3 text-sm text-[#737b8c]">
+                  No stops found.
+                </p>
               ) : null}
             </div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#737b8c]">
@@ -2109,68 +2095,68 @@ function RouteStopsPanel({
                 </tr>
               ) : (
                 orderedStops.map((item, index) => {
-                const routeLabel =
-                  configuredRoutes.find((route) => route.id === item.routeId)
-                    ?.routeLabel ?? "Unknown route";
-                return (
-                  <tr key={item.id} className="hover:bg-[#f9fbff]">
-                    <td className="px-4 py-4 font-bold text-[#1f2633]">
-                      {routeLabel}
-                    </td>
-                    <td className="px-4 py-4 text-[#5b6272]">
-                      {item.stopName}
-                    </td>
-                    <td
-                      className="px-4 py-4 text-[#5b6272]"
-                      draggable
-                      onDragStart={(event) => {
-                        event.dataTransfer.setData(
-                          "text/plain",
-                          String(index),
-                        );
-                      }}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => {
-                        event.preventDefault();
-                        const fromIndex = Number(
-                          event.dataTransfer.getData("text/plain"),
-                        );
-                        handleReorder(fromIndex, index);
-                      }}
-                    >
-                      <span className="inline-flex cursor-grab items-center gap-2 rounded-full bg-[#eef2ff] px-3 py-1 text-xs font-semibold text-[#0a4cad]">
-                        #{index + 1}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-[#5b6272]">
-                      <input
-                        type="text"
-                        value={item.schedule}
-                        onChange={(event) =>
-                          setOrderedStops((prev) =>
-                            prev.map((entry) =>
-                              entry.id === item.id
-                                ? { ...entry, schedule: event.target.value }
-                                : entry,
-                            ),
-                          )
-                        }
-                        className="w-20 rounded-md border border-[#d4daea] bg-white px-2 py-1 text-xs text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
-                      />
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex justify-end gap-1">
-                        <button
-                          className="cursor-pointer rounded-md p-2 text-[#586579] transition-colors hover:bg-[#fff1f1] hover:text-[#c33c45]"
-                          onClick={() => setDeleteRouteStopId(item.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
+                  const routeLabel =
+                    configuredRoutes.find((route) => route.id === item.routeId)
+                      ?.routeLabel ?? "Unknown route";
+                  return (
+                    <tr key={item.id} className="hover:bg-[#f9fbff]">
+                      <td className="px-4 py-4 font-bold text-[#1f2633]">
+                        {routeLabel}
+                      </td>
+                      <td className="px-4 py-4 text-[#5b6272]">
+                        {item.stopName}
+                      </td>
+                      <td
+                        className="px-4 py-4 text-[#5b6272]"
+                        draggable
+                        onDragStart={(event) => {
+                          event.dataTransfer.setData(
+                            "text/plain",
+                            String(index),
+                          );
+                        }}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          const fromIndex = Number(
+                            event.dataTransfer.getData("text/plain"),
+                          );
+                          handleReorder(fromIndex, index);
+                        }}
+                      >
+                        <span className="inline-flex cursor-grab items-center gap-2 rounded-full bg-[#eef2ff] px-3 py-1 text-xs font-semibold text-[#0a4cad]">
+                          #{index + 1}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-[#5b6272]">
+                        <input
+                          type="text"
+                          value={item.schedule}
+                          onChange={(event) =>
+                            setOrderedStops((prev) =>
+                              prev.map((entry) =>
+                                entry.id === item.id
+                                  ? { ...entry, schedule: event.target.value }
+                                  : entry,
+                              ),
+                            )
+                          }
+                          className="w-20 rounded-md border border-[#d4daea] bg-white px-2 py-1 text-xs text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+                        />
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            className="cursor-pointer rounded-md p-2 text-[#586579] transition-colors hover:bg-[#fff1f1] hover:text-[#c33c45]"
+                            onClick={() => setDeleteRouteStopId(item.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
               {selectedRouteId && orderedStops.length === 0 && (
                 <tr>
@@ -2186,7 +2172,6 @@ function RouteStopsPanel({
           </table>
         </div>
       </section>
-
 
       {deleteRouteStopId ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -2306,7 +2291,9 @@ function LogsPanel({ logs }: { logs: LogItem[] }) {
                 <td className="px-4 py-3 text-sm text-[#586579]">
                   {new Date(item.createdAt).toLocaleString()}
                 </td>
-                <td className="px-4 py-3 font-bold text-[#1f2633]">{item.action}</td>
+                <td className="px-4 py-3 font-bold text-[#1f2633]">
+                  {item.action}
+                </td>
                 <td className="px-4 py-3 text-[#586579]">
                   {item.entity}
                   {item.entityId ? ` (${item.entityId})` : ""}
@@ -2326,14 +2313,20 @@ function LogsPanel({ logs }: { logs: LogItem[] }) {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-[#586579]">{item.ipAddress}</td>
-                <td className="max-w-md truncate px-4 py-3 text-[#586579]" title={item.details}>
+                <td
+                  className="max-w-md truncate px-4 py-3 text-[#586579]"
+                  title={item.details}
+                >
                   {item.details}
                 </td>
               </tr>
             ))}
             {filteredLogs.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-sm text-[#737b8c]">
+                <td
+                  colSpan={7}
+                  className="px-4 py-8 text-center text-sm text-[#737b8c]"
+                >
                   No logs found.
                 </td>
               </tr>
@@ -2344,7 +2337,10 @@ function LogsPanel({ logs }: { logs: LogItem[] }) {
 
       <div className="space-y-3 p-4 md:hidden">
         {filteredLogs.map((item) => (
-          <article key={item.id} className="rounded-xl border border-[#dbe2f0] bg-[#fbfcff] p-4">
+          <article
+            key={item.id}
+            className="rounded-xl border border-[#dbe2f0] bg-[#fbfcff] p-4"
+          >
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-bold text-[#1f2633]">{item.action}</p>
               <span
@@ -2367,7 +2363,9 @@ function LogsPanel({ logs }: { logs: LogItem[] }) {
             <p className="text-xs text-[#586579]">
               {item.actorName} ({item.actorRole}) • {item.ipAddress}
             </p>
-            <p className="mt-2 text-xs text-[#586579] break-all">{item.details}</p>
+            <p className="mt-2 text-xs text-[#586579] break-all">
+              {item.details}
+            </p>
           </article>
         ))}
         {filteredLogs.length === 0 ? (
@@ -2430,7 +2428,9 @@ function ArrivalLogsPanel({ logs }: { logs: ArrivalLogItem[] }) {
                 <td className="px-4 py-3 text-sm text-[#586579]">
                   {new Date(item.createdAt).toLocaleString()}
                 </td>
-                <td className="px-4 py-3 font-bold text-[#1f2633]">{item.busId}</td>
+                <td className="px-4 py-3 font-bold text-[#1f2633]">
+                  {item.busId}
+                </td>
                 <td className="px-4 py-3 text-[#586579]">{item.routeLabel}</td>
                 <td className="px-4 py-3 text-[#586579]">{item.stopName}</td>
                 <td className="px-4 py-3 text-[#586579]">{item.rfidTag}</td>
@@ -2438,7 +2438,10 @@ function ArrivalLogsPanel({ logs }: { logs: ArrivalLogItem[] }) {
             ))}
             {filteredLogs.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-[#737b8c]">
+                <td
+                  colSpan={5}
+                  className="px-4 py-8 text-center text-sm text-[#737b8c]"
+                >
                   No arrival logs found.
                 </td>
               </tr>
@@ -2449,7 +2452,10 @@ function ArrivalLogsPanel({ logs }: { logs: ArrivalLogItem[] }) {
 
       <div className="space-y-3 p-4 md:hidden">
         {filteredLogs.map((item) => (
-          <article key={item.id} className="rounded-xl border border-[#dbe2f0] bg-[#fbfcff] p-4">
+          <article
+            key={item.id}
+            className="rounded-xl border border-[#dbe2f0] bg-[#fbfcff] p-4"
+          >
             <p className="text-sm font-bold text-[#1f2633]">{item.busId}</p>
             <p className="mt-1 text-xs text-[#586579]">
               {new Date(item.createdAt).toLocaleString()}
@@ -2485,7 +2491,14 @@ export default function AdminClientPage({
   arrivalLogs: ArrivalLogItem[];
 }) {
   const [tab, setTab] = useState<AdminTab>("buses");
-  const { isConnected, busPassengers, busHeartbeats, busRFIDs, recentArrivals, lastUpdate } = useMqttContext();
+  const {
+    isConnected,
+    busPassengers,
+    busHeartbeats,
+    busRFIDs,
+    recentArrivals,
+    lastUpdate,
+  } = useMqttContext();
 
   return (
     <section className="space-y-6 md:space-y-8">
@@ -2497,9 +2510,15 @@ export default function AdminClientPage({
           Fleet & Route Management
         </h1>
         <div className="mt-4 flex flex-wrap items-center gap-4">
-          <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${isConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-            {isConnected ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
-            MQTT: {isConnected ? 'Connected' : 'Disconnected'}
+          <div
+            className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${isConnected ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+          >
+            {isConnected ? (
+              <Wifi className="h-3.5 w-3.5" />
+            ) : (
+              <WifiOff className="h-3.5 w-3.5" />
+            )}
+            MQTT: {isConnected ? "Connected" : "Disconnected"}
           </div>
           <div className="flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1.5 text-xs font-medium text-blue-700">
             <Signal className="h-3.5 w-3.5" />
@@ -2522,7 +2541,11 @@ export default function AdminClientPage({
       </header>
 
       <div className="border-b border-[#cdd4e4]">
-        <div className="flex gap-5 sm:gap-6" role="tablist" aria-label="Admin Tabs">
+        <div
+          className="flex gap-5 sm:gap-6"
+          role="tablist"
+          aria-label="Admin Tabs"
+        >
           <button
             role="tab"
             aria-selected={tab === "buses"}
@@ -2589,7 +2612,7 @@ export default function AdminClientPage({
             <TrainFront className="h-4 w-4" />
             Arrivals
           </button>
-          <button
+          {/* <button
             role="tab"
             aria-selected={tab === "iot-devices"}
             onClick={() => setTab("iot-devices")}
@@ -2601,7 +2624,7 @@ export default function AdminClientPage({
           >
             <Wifi className="h-4 w-4" />
             IoT Devices
-          </button>
+          </button> */}
           <button
             role="tab"
             aria-selected={tab === "logs"}
@@ -2632,111 +2655,169 @@ export default function AdminClientPage({
         />
       ) : tab === "arrival-logs" ? (
         <ArrivalLogsPanel logs={arrivalLogs} />
-      ) : tab === "iot-devices" ? (
-        <div className="rounded-xl border border-[#dbe2f9] bg-white p-6">
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-[#141b2c]">Connected IoT Devices</h3>
-              <p className="text-sm text-[#586579]">RFID Scanner & IR Sensor status from MQTT broker</p>
-            </div>
-            <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${isConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-              {isConnected ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
-              {isConnected ? 'Connected' : 'Disconnected'}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-            <div className="rounded-lg bg-[#f8f9ff] p-4">
-              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#586579]">RFID Scans</p>
-              <p className="text-3xl font-bold text-amber-600">{busRFIDs.size}</p>
-              <p className="text-xs text-[#586579]">Bus di halte</p>
-            </div>
-            <div className="rounded-lg bg-[#f8f9ff] p-4">
-              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#586579]">Passenger Data</p>
-              <p className="text-3xl font-bold text-[#0040a1]">{busPassengers.size}</p>
-              <p className="text-xs text-[#586579]">Active sensors</p>
-            </div>
-            <div className="rounded-lg bg-[#f8f9ff] p-4">
-              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#586579]">Heartbeats</p>
-              <p className="text-3xl font-bold text-green-600">{busHeartbeats.size}</p>
-              <p className="text-xs text-[#586579]">Devices online</p>
-            </div>
-            <div className="rounded-lg bg-[#f8f9ff] p-4">
-              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#586579]">Recent Arrivals</p>
-              <p className="text-3xl font-bold text-purple-600">{recentArrivals.length}</p>
-              <p className="text-xs text-[#586579]">Terakhir 20</p>
-            </div>
-          </div>
-
-          {recentArrivals.length > 0 && (
-            <div className="mt-6">
-              <h4 className="mb-3 text-sm font-bold text-[#141b2c]">Riwayat RFID Scan (Bus masuk halte)</h4>
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse text-left">
-                  <thead>
-                    <tr className="bg-[#f1f4ff] text-[11px] font-bold uppercase tracking-[0.15em] text-[#586579]">
-                      <th className="px-4 py-3">Halte</th>
-                      <th className="px-4 py-3">UID (RFID)</th>
-                      <th className="px-4 py-3">Waktu</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#e0e5f1]">
-                    {recentArrivals.slice(0, 10).map((arrival, idx) => (
-                      <tr key={`${arrival.halte}-${arrival.timestamp}-${idx}`} className="hover:bg-[#f9fbff]">
-                        <td className="px-4 py-3 font-bold text-[#0040a1]">{arrival.halte}</td>
-                        <td className="px-4 py-3 text-[#5b6272] font-mono">{arrival.uid}</td>
-                        <td className="px-4 py-3 text-[#5b6272]">{arrival.timestamp}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {busHeartbeats.size > 0 && (
-            <div className="mt-6">
-              <h4 className="mb-3 text-sm font-bold text-[#141b2c]">Device Heartbeats</h4>
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse text-left">
-                  <thead>
-                    <tr className="bg-[#f1f4ff] text-[11px] font-bold uppercase tracking-[0.15em] text-[#586579]">
-                      <th className="px-4 py-3">Bus ID</th>
-                      <th className="px-4 py-3">Device ID</th>
-                      <th className="px-4 py-3">Battery</th>
-                      <th className="px-4 py-3">Signal</th>
-                      <th className="px-4 py-3">Last Heartbeat</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#e0e5f1]">
-                    {Array.from(busHeartbeats.entries()).map(([busId, heartbeat]) => (
-                      <tr key={busId} className="hover:bg-[#f9fbff]">
-                        <td className="px-4 py-3 font-bold text-[#0040a1]">{busId}</td>
-                        <td className="px-4 py-3 text-[#5b6272]">{heartbeat.deviceId}</td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${heartbeat.battery && heartbeat.battery > 20 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                            {heartbeat.battery ?? 'N/A'}%
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-[#5b6272]">{heartbeat.signal ?? 'N/A'} dBm</td>
-                        <td className="px-4 py-3 text-[#5b6272]">{new Date(heartbeat.timestamp).toLocaleTimeString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {busRFIDs.size === 0 && busPassengers.size === 0 && busHeartbeats.size === 0 && (
-            <div className="mt-6 rounded-lg bg-[#f8f9ff] p-8 text-center">
-              <WifiOff className="mx-auto mb-3 h-8 w-8 text-[#586579]" />
-              <p className="font-medium text-[#586579]">No IoT devices connected</p>
-              <p className="text-sm text-[#737785]">Waiting for devices to send data via MQTT...</p>
-            </div>
-          )}
-        </div>
       ) : (
+        //  : tab === "iot-devices" ? (
+        //   <div className="rounded-xl border border-[#dbe2f9] bg-white p-6">
+        //     <div className="mb-6 flex items-center justify-between">
+        //       <div>
+        //         <h3 className="text-lg font-bold text-[#141b2c]">
+        //           Connected IoT Devices
+        //         </h3>
+        //         <p className="text-sm text-[#586579]">
+        //           RFID Scanner & IR Sensor status from MQTT broker
+        //         </p>
+        //       </div>
+        //       <div
+        //         className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${isConnected ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+        //       >
+        //         {isConnected ? (
+        //           <Wifi className="h-3.5 w-3.5" />
+        //         ) : (
+        //           <WifiOff className="h-3.5 w-3.5" />
+        //         )}
+        //         {isConnected ? "Connected" : "Disconnected"}
+        //       </div>
+        //     </div>
+
+        //     <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        //       <div className="rounded-lg bg-[#f8f9ff] p-4">
+        //         <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#586579]">
+        //           RFID Scans
+        //         </p>
+        //         <p className="text-3xl font-bold text-amber-600">
+        //           {busRFIDs.size}
+        //         </p>
+        //         <p className="text-xs text-[#586579]">Bus di halte</p>
+        //       </div>
+        //       <div className="rounded-lg bg-[#f8f9ff] p-4">
+        //         <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#586579]">
+        //           Passenger Data
+        //         </p>
+        //         <p className="text-3xl font-bold text-[#0040a1]">
+        //           {busPassengers.size}
+        //         </p>
+        //         <p className="text-xs text-[#586579]">Active sensors</p>
+        //       </div>
+        //       <div className="rounded-lg bg-[#f8f9ff] p-4">
+        //         <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#586579]">
+        //           Heartbeats
+        //         </p>
+        //         <p className="text-3xl font-bold text-green-600">
+        //           {busHeartbeats.size}
+        //         </p>
+        //         <p className="text-xs text-[#586579]">Devices online</p>
+        //       </div>
+        //       <div className="rounded-lg bg-[#f8f9ff] p-4">
+        //         <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#586579]">
+        //           Recent Arrivals
+        //         </p>
+        //         <p className="text-3xl font-bold text-purple-600">
+        //           {recentArrivals.length}
+        //         </p>
+        //         <p className="text-xs text-[#586579]">Terakhir 20</p>
+        //       </div>
+        //     </div>
+
+        //     {recentArrivals.length > 0 && (
+        //       <div className="mt-6">
+        //         <h4 className="mb-3 text-sm font-bold text-[#141b2c]">
+        //           Riwayat RFID Scan (Bus masuk halte)
+        //         </h4>
+        //         <div className="overflow-x-auto">
+        //           <table className="min-w-full border-collapse text-left">
+        //             <thead>
+        //               <tr className="bg-[#f1f4ff] text-[11px] font-bold uppercase tracking-[0.15em] text-[#586579]">
+        //                 <th className="px-4 py-3">Halte</th>
+        //                 <th className="px-4 py-3">UID (RFID)</th>
+        //                 <th className="px-4 py-3">Waktu</th>
+        //               </tr>
+        //             </thead>
+        //             <tbody className="divide-y divide-[#e0e5f1]">
+        //               {recentArrivals.slice(0, 10).map((arrival, idx) => (
+        //                 <tr
+        //                   key={`${arrival.stopId}-${arrival.timestamp}-${idx}`}
+        //                   className="hover:bg-[#f9fbff]"
+        //                 >
+        //                   <td className="px-4 py-3 font-bold text-[#0040a1]">
+        //                     {arrival.stopId}
+        //                   </td>
+        //                   <td className="px-4 py-3 text-[#5b6272] font-mono">
+        //                     {arrival.uid}
+        //                   </td>
+        //                   <td className="px-4 py-3 text-[#5b6272]">
+        //                     {arrival.timestamp}
+        //                   </td>
+        //                 </tr>
+        //               ))}
+        //             </tbody>
+        //           </table>
+        //         </div>
+        //       </div>
+        //     )}
+
+        //     {busHeartbeats.size > 0 && (
+        //       <div className="mt-6">
+        //         <h4 className="mb-3 text-sm font-bold text-[#141b2c]">
+        //           Device Heartbeats
+        //         </h4>
+        //         <div className="overflow-x-auto">
+        //           <table className="min-w-full border-collapse text-left">
+        //             <thead>
+        //               <tr className="bg-[#f1f4ff] text-[11px] font-bold uppercase tracking-[0.15em] text-[#586579]">
+        //                 <th className="px-4 py-3">Bus ID</th>
+        //                 <th className="px-4 py-3">Device ID</th>
+        //                 <th className="px-4 py-3">Battery</th>
+        //                 <th className="px-4 py-3">Signal</th>
+        //                 <th className="px-4 py-3">Last Heartbeat</th>
+        //               </tr>
+        //             </thead>
+        //             <tbody className="divide-y divide-[#e0e5f1]">
+        //               {Array.from(busHeartbeats.entries()).map(
+        //                 ([busId, heartbeat]) => (
+        //                   <tr key={busId} className="hover:bg-[#f9fbff]">
+        //                     <td className="px-4 py-3 font-bold text-[#0040a1]">
+        //                       {busId}
+        //                     </td>
+        //                     <td className="px-4 py-3 text-[#5b6272]">
+        //                       {heartbeat.deviceId}
+        //                     </td>
+        //                     <td className="px-4 py-3">
+        //                       <span
+        //                         className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${heartbeat.battery && heartbeat.battery > 20 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+        //                       >
+        //                         {heartbeat.battery ?? "N/A"}%
+        //                       </span>
+        //                     </td>
+        //                     <td className="px-4 py-3 text-[#5b6272]">
+        //                       {heartbeat.signal ?? "N/A"} dBm
+        //                     </td>
+        //                     <td className="px-4 py-3 text-[#5b6272]">
+        //                       {new Date(heartbeat.timestamp).toLocaleTimeString()}
+        //                     </td>
+        //                   </tr>
+        //                 ),
+        //               )}
+        //             </tbody>
+        //           </table>
+        //         </div>
+        //       </div>
+        //     )}
+
+        //     {busRFIDs.size === 0 &&
+        //       busPassengers.size === 0 &&
+        //       busHeartbeats.size === 0 && (
+        //         <div className="mt-6 rounded-lg bg-[#f8f9ff] p-8 text-center">
+        //           <WifiOff className="mx-auto mb-3 h-8 w-8 text-[#586579]" />
+        //           <p className="font-medium text-[#586579]">
+        //             No IoT devices connected
+        //           </p>
+        //           <p className="text-sm text-[#737785]">
+        //             Waiting for devices to send data via MQTT...
+        //           </p>
+        //         </div>
+        //       )}
+        //   </div>
+        // )
         <LogsPanel logs={logs} />
       )}
     </section>

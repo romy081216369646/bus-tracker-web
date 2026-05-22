@@ -9,24 +9,26 @@ import {
 } from "react";
 import { mqttClient } from "./mqtt-client";
 
-// Matches rfid.ino payload: {"halte":"Halte A","uid":"83 D9 D5 05","timestamp":"00:01:23"}
+// Matches rfid.ino payload: {"stopId":"<stop-id>","uid":"E3A1B2","timestamp":"00:01:23"}
+// uid = UID RFID card yang ditap (identitas bus)
+// stopId = ID halte dari database
 export interface BusRFID {
-  halte: string;
+  stopId: string;
   uid: string;
   timestamp: string;
 }
 
-// Matches irSensor.ino payload: {"event":"masuk"|"keluar","passenger_count":1,"bus":"Bis A","timestamp":"00:01:23"}
+// Matches irSensor.ino payload: {"event":"masuk"|"keluar","passenger_count":1,"uid":"E3A1B2","timestamp":"00:01:23"}
 export interface BusPassengerEvent {
   event: "masuk" | "keluar";
   passenger_count: number;
-  bus: string;
+  uid: string;
   timestamp: string;
 }
 
 // Accumulated passenger state per bus (derived from events)
 export interface BusPassengerState {
-  bus: string;
+  uid: string;
   totalPassengers: number;
   lastEvent: "masuk" | "keluar";
   lastTimestamp: string;
@@ -87,6 +89,18 @@ export function MqttProvider({ children }: MqttProviderProps) {
     let unsubs: Array<() => void> = [];
     let mounted = true;
 
+    const pushEvent = async (type: "rfid" | "passenger", payload: object) => {
+      try {
+        await fetch("/api/iot/events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type, payload }),
+        });
+      } catch (error) {
+        console.error("[MqttProvider] Failed to persist MQTT event:", error);
+      }
+    };
+
     const connect = async () => {
       try {
         await mqttClient.connect();
@@ -108,7 +122,9 @@ export function MqttProvider({ children }: MqttProviderProps) {
         }
 
         // --- Handler for bus/tracking (RFID) ---
-        // ESP32 payload: {"halte":"Halte A","uid":"83 D9 D5 05","timestamp":"00:01:23"}
+        // ESP32 payload: {"stopId":"<stop-id>","uid":"E3A1B2","timestamp":"00:01:23"}
+        // uid = UID RFID card = identitas bus
+        // stopId = halte mana yang mendeteksi bus tersebut
         const unsub1 = mqttClient.on("bus/tracking", (_topic, message) => {
           if (!mounted) return;
           try {
@@ -117,7 +133,7 @@ export function MqttProvider({ children }: MqttProviderProps) {
 
             // Validate required fields from rfid.ino
             if (
-              typeof data.halte !== "string" ||
+              typeof data.stopId !== "string" ||
               typeof data.uid !== "string" ||
               typeof data.timestamp !== "string"
             ) {
@@ -129,19 +145,21 @@ export function MqttProvider({ children }: MqttProviderProps) {
             }
 
             const rfidEvent: BusRFID = {
-              halte: data.halte,
+              stopId: data.stopId,
               uid: data.uid,
               timestamp: data.timestamp,
             };
 
             setBusRFIDs((prev) => {
               const newMap = new Map(prev);
-              // Key by halte name so we track latest arrival per stop
-              newMap.set(rfidEvent.halte, rfidEvent);
+              // Key by UID (RFID card = bus identity)
+              // Frontend will resolve UID → busCode using rfidTag from database
+              newMap.set(rfidEvent.uid, rfidEvent);
               return newMap;
             });
             setRecentArrivals((prev) => [rfidEvent, ...prev].slice(0, 50));
             setLastUpdate(new Date());
+            void pushEvent("rfid", rfidEvent);
           } catch (e) {
             console.error(
               "[MqttProvider] Failed to parse bus/tracking payload:",
@@ -153,7 +171,7 @@ export function MqttProvider({ children }: MqttProviderProps) {
         });
 
         // --- Handler for bus/passenger/event (IR Sensor) ---
-        // ESP32 payload: {"event":"masuk"|"keluar","passenger_count":1,"bus":"Bis A","timestamp":"00:01:23"}
+        // ESP32 payload: {"event":"masuk"|"keluar","passenger_count":1,"uid":"E3A1B2","timestamp":"00:01:23"}
         const unsub2 = mqttClient.on(
           "bus/passenger/event",
           (_topic, message) => {
@@ -166,7 +184,7 @@ export function MqttProvider({ children }: MqttProviderProps) {
               if (
                 typeof data.event !== "string" ||
                 typeof data.passenger_count !== "number" ||
-                typeof data.bus !== "string" ||
+                typeof data.uid !== "string" ||
                 typeof data.timestamp !== "string"
               ) {
                 console.warn(
@@ -179,7 +197,7 @@ export function MqttProvider({ children }: MqttProviderProps) {
               const passengerEvent: BusPassengerEvent = {
                 event: data.event as "masuk" | "keluar",
                 passenger_count: data.passenger_count,
-                bus: data.bus,
+                uid: data.uid,
                 timestamp: data.timestamp,
               };
 
@@ -191,15 +209,15 @@ export function MqttProvider({ children }: MqttProviderProps) {
               // Update accumulated passenger state per bus
               setBusPassengers((prev) => {
                 const newMap = new Map(prev);
-                const existing = newMap.get(passengerEvent.bus);
+                const existing = newMap.get(passengerEvent.uid);
                 const currentTotal = existing ? existing.totalPassengers : 0;
                 const newTotal =
                   passengerEvent.event === "masuk"
                     ? currentTotal + passengerEvent.passenger_count
                     : Math.max(0, currentTotal - passengerEvent.passenger_count);
 
-                newMap.set(passengerEvent.bus, {
-                  bus: passengerEvent.bus,
+                newMap.set(passengerEvent.uid, {
+                  uid: passengerEvent.uid,
                   totalPassengers: newTotal,
                   lastEvent: passengerEvent.event,
                   lastTimestamp: passengerEvent.timestamp,
@@ -208,6 +226,7 @@ export function MqttProvider({ children }: MqttProviderProps) {
               });
 
               setLastUpdate(new Date());
+              void pushEvent("passenger", passengerEvent);
             } catch (e) {
               console.error(
                 "[MqttProvider] Failed to parse bus/passenger/event payload:",
