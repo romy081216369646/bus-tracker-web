@@ -2,7 +2,7 @@
 
 import BusCard from "@/components/BusCard";
 import { useMqttContext } from "@/lib/iot";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface FleetCard {
   id: string;
@@ -45,15 +45,9 @@ function findInMap<T>(map: Map<string, T>, key: string): T | undefined {
 }
 
 export default function DashboardClient({ fleetCards }: DashboardClientProps) {
-  const { busRFIDs, busPassengers, busHeartbeats, isConnected, lastUpdate } =
-    useMqttContext();
+  const { busRFIDs, busHeartbeats, isConnected, lastUpdate } = useMqttContext();
   const [liveFleetCards, setLiveFleetCards] = useState<FleetCard[]>(fleetCards);
   const [pollError, setPollError] = useState<string | null>(null);
-  const [pendingPassengerDelta, setPendingPassengerDelta] = useState<
-    Map<string, number>
-  >(new Map());
-  const lastPolledPassengersRef = useRef<Map<string, number>>(new Map());
-  const lastMqttTotalsRef = useRef<Map<string, number>>(new Map());
   const [stopLookup, setStopLookup] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
@@ -89,7 +83,7 @@ export default function DashboardClient({ fleetCards }: DashboardClientProps) {
     };
 
     fetchFleetCards();
-    intervalId = setInterval(fetchFleetCards, 10000);
+    intervalId = setInterval(fetchFleetCards, 2000);
 
     return () => {
       mounted = false;
@@ -127,42 +121,6 @@ export default function DashboardClient({ fleetCards }: DashboardClientProps) {
       mounted = false;
     };
   }, []);
-
-  useEffect(() => {
-    const prevPolled = lastPolledPassengersRef.current;
-    const nextPolled = new Map<string, number>();
-    const nextPending = new Map(pendingPassengerDelta);
-
-    liveFleetCards.forEach((bus) => {
-      const previous = prevPolled.get(bus.rfidTag) ?? bus.passengers;
-      const current = bus.passengers;
-      nextPolled.set(bus.rfidTag, current);
-
-      if (current !== previous) {
-        const appliedDelta = current - previous;
-        const existingPending = nextPending.get(bus.rfidTag) ?? 0;
-        const updatedPending = existingPending - appliedDelta;
-        nextPending.set(bus.rfidTag, Math.max(0, updatedPending));
-      }
-    });
-
-    lastPolledPassengersRef.current = nextPolled;
-    setPendingPassengerDelta(nextPending);
-  }, [liveFleetCards]);
-
-  useEffect(() => {
-    const nextPending = new Map(pendingPassengerDelta);
-    busPassengers.forEach((passenger, uid) => {
-      const previousTotal = lastMqttTotalsRef.current.get(uid) ?? 0;
-      const delta = passenger.totalPassengers - previousTotal;
-      if (delta !== 0) {
-        const existingPending = nextPending.get(uid) ?? 0;
-        nextPending.set(uid, Math.max(0, existingPending + delta));
-        lastMqttTotalsRef.current.set(uid, passenger.totalPassengers);
-      }
-    });
-    setPendingPassengerDelta(nextPending);
-  }, [busPassengers]);
 
   return (
     <section className="space-y-6">
@@ -205,8 +163,7 @@ export default function DashboardClient({ fleetCards }: DashboardClientProps) {
             const heartbeat = findInMap(busHeartbeats, bus.busCode);
 
             // Merge realtime data into existing card props (no new cards created)
-            const passengerDelta = pendingPassengerDelta.get(bus.rfidTag) ?? 0;
-            const realtimePassengers = bus.passengers + passengerDelta;
+            const realtimePassengers = Math.max(0, bus.passengers);
             const realtimeLastStop = rfid?.stopId
               ? stopLookup.get(rfid.stopId) ?? bus.lastStop
               : bus.lastStop;
