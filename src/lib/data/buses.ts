@@ -17,7 +17,7 @@ type RouteStopScheduleItem = {
   routeId: string;
   stopId: string;
   order: number;
-  schedule: string;
+  etaMinutes: number;
   stop: { name: string };
 };
 
@@ -32,6 +32,7 @@ type BusQueryResult = {
   capacity: number;
   state: {
     lastStopId: string | null;
+    lastStopAt: Date | null;
     lastStop: { name: string } | null;
     destination: { name: string } | null;
   } | null;
@@ -61,6 +62,7 @@ export async function getBusCards() {
         state: {
           select: {
             lastStopId: true,
+            lastStopAt: true,
             lastStop: { select: { name: true } },
             destination: { select: { name: true } },
           },
@@ -73,7 +75,7 @@ export async function getBusCards() {
         routeId: true,
         stopId: true,
         order: true,
-        schedule: true,
+        etaMinutes: true,
         stop: { select: { name: true } },
       },
       orderBy: [{ routeId: "asc" }, { order: "asc" }],
@@ -108,7 +110,15 @@ export async function getBusCards() {
         currentIndex >= 0 ? (currentIndex + 1) % routeSchedule.length : 0;
 
       const nextStop = routeSchedule[nextIndex];
-      nextArrival = nextStop.schedule;
+      const etaMinutes = Math.max(1, Number(nextStop.etaMinutes) || 1);
+      const baseTime = bus.state?.lastStopAt
+        ? bus.state.lastStopAt.getTime()
+        : Date.now();
+      const etaDate = new Date(baseTime + etaMinutes * 60 * 1000);
+      nextArrival = etaDate.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
       if (!bus.state?.destination?.name) {
         nextStopName = nextStop.stop.name;
       }

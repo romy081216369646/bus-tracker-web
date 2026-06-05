@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     routeId?: string;
     stopId?: string;
     order?: number;
-    schedule?: string;
+    etaMinutes?: number;
   };
 
   if (!body.routeId || !body.stopId || body.order === undefined) {
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
         routeId: body.routeId,
         stopId: body.stopId,
         order: body.order,
-        schedule: body.schedule ?? "00:00",
+        etaMinutes: Math.max(1, Number(body.etaMinutes) || 5),
       },
     });
 

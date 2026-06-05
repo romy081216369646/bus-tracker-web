@@ -69,7 +69,7 @@ type RouteStopItem = {
   stopId: string;
   order: number;
   stopName: string;
-  schedule: string;
+  etaMinutes: number;
 };
 
 type LogItem = {
@@ -1736,8 +1736,8 @@ function RouteStopsPanel({
   const router = useRouter();
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const [selectedStopIds, setSelectedStopIds] = useState<string[]>([]);
-  const [scheduleBase, setScheduleBase] = useState("07:00");
-  const [scheduleStepMinutes, setScheduleStepMinutes] = useState("5");
+  const [etaBase, setEtaBase] = useState("6");
+  const [etaStepMinutes, setEtaStepMinutes] = useState("2");
   const [stopSearchQuery, setStopSearchQuery] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [orderedStops, setOrderedStops] = useState<RouteStopItem[]>([]);
@@ -1791,18 +1791,16 @@ function RouteStopsPanel({
     return orderedStops.some((item, index) => item.order !== index + 1);
   }, [orderedStops]);
 
-  const originalSchedules = useMemo(() => {
-    return filteredRouteStops.reduce<Record<string, string>>((acc, item) => {
-      acc[item.id] = item.schedule;
+  const originalEtas = useMemo(() => {
+    return filteredRouteStops.reduce<Record<string, number>>((acc, item) => {
+      acc[item.id] = item.etaMinutes;
       return acc;
     }, {});
   }, [filteredRouteStops]);
 
-  const hasScheduleChanges = useMemo(() => {
-    return orderedStops.some(
-      (item) => originalSchedules[item.id] !== item.schedule,
-    );
-  }, [orderedStops, originalSchedules]);
+  const hasEtaChanges = useMemo(() => {
+    return orderedStops.some((item) => originalEtas[item.id] !== item.etaMinutes);
+  }, [orderedStops, originalEtas]);
 
   const assignedStopIds = useMemo(() => {
     return new Set(selectedRouteStops.map((item) => item.stopId));
@@ -1819,26 +1817,12 @@ function RouteStopsPanel({
     return maxOrder + 1;
   }, [selectedRouteStops]);
 
-  const parseMinutes = (value: string) => {
-    const trimmed = value.trim();
-    const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(trimmed);
-    if (!match) {
+  const parseEta = (value: string) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
       return null;
     }
-    const hours = Number(match[1]);
-    const minutes = Number(match[2]);
-    return hours * 60 + minutes;
-  };
-
-  const formatMinutes = (total: number) => {
-    const safeTotal = ((total % 1440) + 1440) % 1440;
-    const hours = Math.floor(safeTotal / 60)
-      .toString()
-      .padStart(2, "0");
-    const minutes = Math.floor(safeTotal % 60)
-      .toString()
-      .padStart(2, "0");
-    return `${hours}:${minutes}`;
+    return Math.max(1, Math.round(numeric));
   };
 
   const filteredStops = useMemo(() => {
@@ -1893,31 +1877,30 @@ function RouteStopsPanel({
             </div>
             <div className="grid grid-cols-2 gap-2">
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737b8c]">
-                  Start Time
-                </span>
-                <input
-                  type="text"
-                  value={scheduleBase}
-                  onChange={(event) => setScheduleBase(event.target.value)}
-                  placeholder="07:00"
-                  className="w-full rounded-lg border border-[#c7cfe1] bg-white px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737b8c]">
-                  Interval (min)
-                </span>
-                <input
-                  type="number"
-                  min={1}
-                  value={scheduleStepMinutes}
-                  onChange={(event) =>
-                    setScheduleStepMinutes(event.target.value)
-                  }
-                  className="w-full rounded-lg border border-[#c7cfe1] bg-white px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
-                />
-              </label>
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737b8c]">
+                Base ETA (min)
+              </span>
+              <input
+                type="number"
+                min={1}
+                value={etaBase}
+                onChange={(event) => setEtaBase(event.target.value)}
+                placeholder="6"
+                className="w-full rounded-lg border border-[#c7cfe1] bg-white px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#737b8c]">
+                ETA Step (min)
+              </span>
+              <input
+                type="number"
+                min={1}
+                value={etaStepMinutes}
+                onChange={(event) => setEtaStepMinutes(event.target.value)}
+                className="w-full rounded-lg border border-[#c7cfe1] bg-white px-3 py-2 text-sm text-[#1f2633] outline-none ring-[#0a4cad] focus:ring-2"
+              />
+            </label>
             </div>
             <div className="h-44 space-y-2 overflow-auto rounded-lg border border-[#c7cfe1] bg-[#eef2ff] p-2">
               {filteredStops.map((stop) => {
@@ -1993,11 +1976,11 @@ function RouteStopsPanel({
               (id) => !assignedStopIds.has(id),
             );
 
-            const baseMinutes = parseMinutes(scheduleBase) ?? 0;
-            const interval = Math.max(1, Number(scheduleStepMinutes) || 5);
+            const baseMinutes = parseEta(etaBase) ?? 6;
+            const interval = Math.max(1, Number(etaStepMinutes) || 2);
 
             for (const [index, stopId] of pendingStopIds.entries()) {
-              const schedule = formatMinutes(baseMinutes + index * interval);
+              const etaMinutes = baseMinutes + index * interval;
               const response = await fetch("/api/admin/route-stops", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -2005,7 +1988,7 @@ function RouteStopsPanel({
                   routeId: selectedRouteId,
                   stopId,
                   order: nextOrder + index,
-                  schedule,
+                  etaMinutes,
                 }),
               });
               if (!response.ok) {
@@ -2036,15 +2019,14 @@ function RouteStopsPanel({
             disabled={
               !selectedRouteId ||
               orderedStops.length === 0 ||
-              (!hasReorderChanges && !hasScheduleChanges)
+              (!hasReorderChanges && !hasEtaChanges)
             }
             onClick={async () => {
               setErrorMessage(null);
               for (const [index, item] of orderedStops.entries()) {
                 const newOrder = index + 1;
-                const scheduleChanged =
-                  originalSchedules[item.id] !== item.schedule;
-                if (originalOrder[item.id] === newOrder && !scheduleChanged) {
+                const etaChanged = originalEtas[item.id] !== item.etaMinutes;
+                if (originalOrder[item.id] === newOrder && !etaChanged) {
                   continue;
                 }
                 const response = await fetch(
@@ -2054,7 +2036,7 @@ function RouteStopsPanel({
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                       order: newOrder,
-                      schedule: item.schedule,
+                      etaMinutes: item.etaMinutes,
                     }),
                   },
                 );
@@ -2079,7 +2061,7 @@ function RouteStopsPanel({
                 <th className="px-4 py-3">Route</th>
                 <th className="px-4 py-3">Stop</th>
                 <th className="px-4 py-3">Order</th>
-                <th className="px-4 py-3">Schedule</th>
+                <th className="px-4 py-3">ETA (min)</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -2130,13 +2112,20 @@ function RouteStopsPanel({
                       </td>
                       <td className="px-4 py-4 text-[#5b6272]">
                         <input
-                          type="text"
-                          value={item.schedule}
+                          type="number"
+                          min={1}
+                          value={item.etaMinutes}
                           onChange={(event) =>
                             setOrderedStops((prev) =>
                               prev.map((entry) =>
                                 entry.id === item.id
-                                  ? { ...entry, schedule: event.target.value }
+                                  ? {
+                                      ...entry,
+                                      etaMinutes: Math.max(
+                                        1,
+                                        Number(event.target.value) || 1,
+                                      ),
+                                    }
                                   : entry,
                               ),
                             )

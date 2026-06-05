@@ -30,10 +30,10 @@ export async function PATCH(
 
   const body = (await request.json()) as {
     order?: number;
-    schedule?: string;
+    etaMinutes?: number;
   };
 
-  if (body.order === undefined && body.schedule === undefined) {
+  if (body.order === undefined && body.etaMinutes === undefined) {
     await logAuditEvent({
       action: "ROUTE_STOP_UPDATE",
       entity: "route-stop",
@@ -46,7 +46,7 @@ export async function PATCH(
       details: { reason: "MISSING_UPDATE_FIELDS" },
     });
     return NextResponse.json(
-      { error: "Missing order or schedule" },
+      { error: "Missing order or etaMinutes" },
       { status: 400 },
     );
   }
@@ -56,7 +56,10 @@ export async function PATCH(
       where: { id: routeStopId },
       data: {
         order: body.order,
-        schedule: body.schedule,
+        etaMinutes:
+          body.etaMinutes !== undefined
+            ? Math.max(1, Number(body.etaMinutes) || 1)
+            : undefined,
       },
     });
 
@@ -69,7 +72,7 @@ export async function PATCH(
       actorRole: session.user.role,
       ipAddress,
       userAgent,
-      details: { order: body.order, schedule: body.schedule },
+      details: { order: body.order, etaMinutes: body.etaMinutes },
     });
 
     return NextResponse.json(routeStop);
