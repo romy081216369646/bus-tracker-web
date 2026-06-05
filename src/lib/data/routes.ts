@@ -7,7 +7,7 @@ type RouteQueryResult = {
   status: string;
   stops: {
     order: number;
-    schedule: string;
+    etaMinutes: number;
     stop: { name: string };
   }[];
   buses: { id: string }[];
@@ -23,7 +23,7 @@ export async function getRoutesOverview() {
       stops: {
         select: {
           order: true,
-          schedule: true,
+          etaMinutes: true,
           stop: {
             select: {
               name: true,
@@ -47,9 +47,9 @@ export async function getRoutesOverview() {
     name: route.name,
     status: route.status,
     activeBuses: route.buses.length,
-    stops: route.stops.map((item: { stop: { name: string }; schedule: string }) => ({
+    stops: route.stops.map((item: { stop: { name: string }; etaMinutes: number }) => ({
       name: item.stop.name,
-      schedule: item.schedule,
+      etaMinutes: item.etaMinutes,
     })),
   }));
 }

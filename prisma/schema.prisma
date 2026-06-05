@@ -171,7 +171,7 @@ model RouteStop {
   routeId   String
   stopId    String
   order     Int
-  schedule  String   @default("00:00")
+  etaMinutes Int     @default(5)
   createdAt DateTime @default(now())
 
   route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
@@ -202,6 +202,7 @@ model BusState {
   passengers        Int      @default(0)
   lastStopId        String?
   destinationStopId String?
+  lastStopAt        DateTime?
   updatedAt         DateTime @updatedAt
 
   bus         Bus   @relation(fields: [busId], references: [id], onDelete: Cascade)

@@ -23,7 +23,7 @@ type RouteItem = {
   name: string;
   status: RouteStatus;
   activeBuses: number;
-  stops: { name: string; schedule: string }[];
+  stops: { name: string; etaMinutes: number }[];
 };
 
 const statusStyles: Record<RouteStatus, string> = {
@@ -78,7 +78,7 @@ export default function RoutesClientPage({
     name: string;
     status: string;
     activeBuses: number;
-    stops: { name: string; schedule: string }[];
+    stops: { name: string; etaMinutes: number }[];
   }[];
 }) {
   const routes: RouteItem[] = routesData.map((route) => ({
@@ -435,7 +435,7 @@ export default function RoutesClientPage({
                         className="flex flex-col items-center text-center"
                       >
                         <span className="mb-1 text-[11px] font-bold uppercase tracking-[0.2em] text-[#6b7385]">
-                          {stop.schedule}
+                          {stop.etaMinutes} min
                         </span>
                         <span className="mb-2 line-clamp-2 min-h-10 text-xs font-semibold text-[#1f2633]">
                           {stop.name}

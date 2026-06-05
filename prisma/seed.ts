@@ -80,13 +80,13 @@ async function main() {
 
   await prisma.routeStop.createMany({
     data: [
-      { routeId: routeA.id, stopId: stops[0].id, order: 1, schedule: "07:00" },
-      { routeId: routeA.id, stopId: stops[1].id, order: 2, schedule: "07:08" },
-      { routeId: routeA.id, stopId: stops[2].id, order: 3, schedule: "07:16" },
-      { routeId: routeA.id, stopId: stops[3].id, order: 4, schedule: "07:24" },
-      { routeId: routeB.id, stopId: stops[5].id, order: 1, schedule: "06:45" },
-      { routeId: routeB.id, stopId: stops[0].id, order: 2, schedule: "06:56" },
-      { routeId: routeB.id, stopId: stops[4].id, order: 3, schedule: "07:08" },
+      { routeId: routeA.id, stopId: stops[0].id, order: 1, etaMinutes: 6 },
+      { routeId: routeA.id, stopId: stops[1].id, order: 2, etaMinutes: 8 },
+      { routeId: routeA.id, stopId: stops[2].id, order: 3, etaMinutes: 7 },
+      { routeId: routeA.id, stopId: stops[3].id, order: 4, etaMinutes: 6 },
+      { routeId: routeB.id, stopId: stops[5].id, order: 1, etaMinutes: 11 },
+      { routeId: routeB.id, stopId: stops[0].id, order: 2, etaMinutes: 9 },
+      { routeId: routeB.id, stopId: stops[4].id, order: 3, etaMinutes: 12 },
     ],
   });
 
@@ -129,12 +129,14 @@ async function main() {
         passengers: 18,
         lastStopId: stops[0].id,
         destinationStopId: stops[1].id,
+        lastStopAt: now,
       },
       {
         busId: busB.id,
         passengers: 27,
         lastStopId: stops[5].id,
         destinationStopId: stops[0].id,
+        lastStopAt: now,
       },
     ],
   });

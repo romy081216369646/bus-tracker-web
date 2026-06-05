@@ -102,11 +102,13 @@ export async function ingestRfidTracking(payload: RfidTrackingPayload) {
     update: {
       lastStopId: stop?.id,
       destinationStopId: nextStopId,
+      lastStopAt: new Date(),
     },
     create: {
       busId: bus.id,
       lastStopId: stop?.id,
       destinationStopId: nextStopId,
+      lastStopAt: new Date(),
     },
   });
 }

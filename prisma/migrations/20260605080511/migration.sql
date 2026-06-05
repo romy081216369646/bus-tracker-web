@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "BusState" ALTER COLUMN "lastStopAt" SET DATA TYPE TIMESTAMP(3);
