@@ -253,7 +253,7 @@ export default function LandingPage() {
 
                 {/* Copyright */}
                 <div className="text-gray-400 text-sm tracking-wide uppercase text-right min-w-fit">
-                © 2024 Kinetic Precision Framework. All Rights Reserved.
+                © 2026 Kinetic Precision Framework. All Rights Reserved.
                 </div>
             </div>
         </footer>
