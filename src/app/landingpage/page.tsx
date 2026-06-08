@@ -1,4 +1,5 @@
 import { Cpu, Radar, MapPin, LayoutDashboard, Users, Activity, Calendar, Shield, Globe } from "lucide-react";
+import Link from "next/link";
 
 export default function LandingPage() {
   return (
@@ -9,10 +10,10 @@ export default function LandingPage() {
         <nav className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4">
           <h1 className="text-xl font-extrabold text-[#0040a1] tracking-tight">Kinetic Fleet</h1>
           <div className="flex items-center gap-4">
-            <a href="/login" className="text-gray-600 hover:text-[#0040a1] text-sm font-medium">Login</a>
-            <button className="bg-[#0040a1] text-white px-4 py-2 rounded-lg hover:bg-[#043277] transition text-sm font-semibold">
+            {/* <a href="/login" className="text-gray-600 hover:text-[#0040a1] text-sm font-medium">Login</a> */}
+            {/* <button className="bg-[#0040a1] text-white px-4 py-2 rounded-lg hover:bg-[#043277] transition text-sm font-semibold">
               Request Demo
-            </button>
+            </button> */}
           </div>
         </nav>
       </header>
@@ -36,9 +37,11 @@ export default function LandingPage() {
                 technology for seamless transit management. Precision tracking
                 meets operational excellence.
               </p>
-              <button className="mt-6 bg-[#0040a1] text-white px-8 py-4 rounded-xl hover:bg-[#043277] transition text-base font-bold shadow-lg shadow-blue-200">
-                Login →
-              </button>
+              <Link href="/login">
+                <button className="mt-6 bg-[#0040a1] text-white px-8 py-4 rounded-xl hover:bg-[#043277] transition text-base font-bold shadow-lg shadow-blue-200">
+                  Login →
+                </button>
+              </Link>
             </div>
 
             {/* RIGHT */}
